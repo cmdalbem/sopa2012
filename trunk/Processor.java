@@ -1,11 +1,3 @@
-import java.util.*;
-import java.io.*;
-import java.awt.*;
-import java.awt.event.*;
-
-import javax.swing.*;
-
-
 class Processor extends Thread
 {
 	// Access to hardware components
@@ -35,6 +27,7 @@ class Processor extends Thread
 
 	// Kernel is like a software in ROM
 	private Kernel kernel;
+	
 	public Processor(IntController i, GlobalSynch gs, Memory m, ConsoleListener c, 
 			Timer t, Disk d)
 	{
@@ -58,15 +51,17 @@ class Processor extends Thread
 			// sleep a tenth of a second
 			synch.mysleep(2);
 			// read from memory in the address indicated by PC
-			int RD = mem.read(PC++);
+			int RD = mem.read(PC);
 			// break the 32bit word into 4 separate bytes
 			IR[0] = RD>>>24;
 			IR[1] = (RD>>>16) & 255;
 			IR[2] = (RD>>>8) & 255;
 			IR[3] = RD & 255;
 			// print CPU status to check if it is ok
-			System.err.print("processor: PC="+PC);
+			System.err.print("processor: PC=" + PC);
 			System.err.print(" IR="+IR[0]+" "+IR[1]+" "+IR[2]+" "+IR[3]+" ");
+			
+			PC++;
 
 			// Execute basic instructions of the architecture
 			execute_basic_instructions();

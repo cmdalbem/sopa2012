@@ -9,13 +9,13 @@ class Kernel
 	private Memory mem;
 	private ConsoleListener con;
 	private Timer tim;
-	private Disk disk;
+	private Disk[] disks;
 	private Processor pro;
 	
 	// Data used by the kernel
 	private int nextPid;
 	private ProcessList readyList;
-	private ProcessList diskList;
+	private ProcessList[] diskLists;
 	private int[] partitionList;
 	private int npartitions;
 	
@@ -26,21 +26,27 @@ class Kernel
 	
 	// In the constructor goes initialization code
 	public Kernel(IntController i, Memory m, ConsoleListener c, 
-			Timer t, Disk d, Processor p)
+			Timer t, Disk d1, Disk d2, Processor p)
 	{
 		hint = i;
 		mem = m;
 		con = c;
 		tim = t;
-		disk = d;
 		pro = p;
-		readyList = new ProcessList ("Ready");
-		diskList = new ProcessList ("Disk");
 		nextPid = 2;
+		
+		disks = new Disk[2];
+		disks[0] = d1;
+		disks[1] = d2;
+		
+		readyList = new ProcessList ("CPU 0");
+		diskLists = new ProcessList[2];
+		diskLists[0] = new ProcessList ("Disk 0");
+		diskLists[1] = new ProcessList ("Disk 1");
 		
 		npartitions = 6;
 		partitionList = new int[npartitions];
-		partitionList[0] =partitionList[1] = PART_SISOP;
+		partitionList[0] = partitionList[1] = PART_SISOP;
 		for(int it=2; it<npartitions; it++)
 			partitionList[it] = PART_FREE;
 		
@@ -68,7 +74,10 @@ class Kernel
 	{
 		int part = findFreePartition();
 		if(part==-1)
+		{
+			System.err.println("Error creating new process: no partitions avaiable.");
 			return null;
+		}			
 		else
 		{
 			ProcessDescriptor newProc = new ProcessDescriptor(nextPid++, part, true);
@@ -90,7 +99,17 @@ class Kernel
 		pro.setReg( p.getReg() );
 		mem.setBaseRegister( p.getPartition() * mem.getPartitionSize() );
 		mem.setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
-		System.err.println("new process pc: " + pro.getPC());
+	}
+	
+	private void killCurrentProcess()
+	{
+		killProcess( readyList.popFront() );
+		setProcessContext( readyList.getFront() );
+	}
+	
+	private void killProcess(ProcessDescriptor p)
+	{
+		partitionList[p.getPartition()] = PART_FREE;
 	}
 	
 	// Each time the kernel runs it have access to all hardware components
@@ -113,7 +132,9 @@ class Kernel
 			/////////////////////////
 			// HARDWARE INTERRUPTS //
 			/////////////////////////
-			case 2: // HW INT timer
+			case 2:
+				// TIMER INT
+				//
 				readyList.getFront().setPC(pro.getPC());
 				readyList.getFront().setReg(pro.getReg());
 				aux = readyList.popFront();
@@ -123,25 +144,40 @@ class Kernel
 				
 				System.err.println("Time slice is over! CPU now runs: "+readyList.getFront().getPID());
 				break;
+			
 			case 3:
+				// ILLEGAL MEMORY ACCESS
+				//
 				System.err.println("Illegal memory access!");
+				killCurrentProcess();
 				break;
-			case 5: // HW INT disk 
-				if(disk.getError()==disk.ERRORCODE_SUCCESS)
+			
+			case 5:
+				// DISK 1 INT
+				//
+			case 6:
+				// DISK 2 INT
+				//
+				int d = interruptNumber==5 ? 0 : 1;
+				
+				aux = diskLists[d].popFront();
+				
+				if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS)
 				{
-					aux = diskList.popFront();
 					if(aux.isLoading())
 					{
 						//write on memory the loaded data
 						aux.setLoaded();
-						for(int i=0; i<disk.getSize(); i++)
-							mem.superWrite(aux.getPartition()*mem.getPartitionSize() +i, disk.getData(i));
+						for(int i=0; i<disks[d].getSize(); i++)
+							mem.superWrite(aux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
 					}
 					readyList.pushBack( aux );
 				}				
 				else
 				{
-					switch(disk.getError())
+					killProcess(aux);
+					
+					switch(disks[d].getError())
 					{
 						case 1: //disk.ERRORCODE_SOMETHING_WRONG:
 							System.err.println("Error trying to read from disc: something went wrong!");
@@ -155,7 +191,10 @@ class Kernel
 					}
 				}
 				break;
-			case 15: // HW INT console
+			
+			case 15:
+				// CONSOLE INT
+				//
 				int[] val = new int[2];
 				boolean success = true;
 				
@@ -166,17 +205,27 @@ class Kernel
 						if(tokenizer.nextToken() != StreamTokenizer.TT_EOF
 							&& tokenizer.ttype == StreamTokenizer.TT_NUMBER)
 								val[i] = (int) tokenizer.nval;
-				} catch (IOException e) { success=false; }
+				} catch (IOException e) {
+					success=false;
+					System.err.println("Could not parse user's entry.");
+				}
 				
 				if(success)
 				{
-					// create the process without inserting it on readyList
-					aux = createProcess();
-					if(aux!=null)
+					if(val[0]==0 || val[0]==1)
 					{
-						diskList.pushBack(aux);					
-						disk.roda(disk.OPERATION_LOAD,val[1],0);
+						// create the process without inserting it on readyList
+						aux = createProcess();
+						if(aux!=null)
+						{
+							diskLists[val[0]].pushBack(aux);					
+							disks[val[0]].roda( disks[val[0]].OPERATION_LOAD,
+												val[1],
+												0 );
+						}
 					}
+					else
+						System.err.println("Invalid disk entered: please choose Disk 0 or 1.");
 				}
 				
 				break;
@@ -185,8 +234,7 @@ class Kernel
 			// SOFTWARE INTERRUPTS //
 			/////////////////////////
 			case 32: // EXIT
-				aux = readyList.popFront();
-				setProcessContext( readyList.getFront() );
+				killCurrentProcess();
 				break;
 				
 			case 34: // OPEN
@@ -198,9 +246,10 @@ class Kernel
 				break;
 				
 			case 36: // GET
+				//TODO
 				aux = readyList.popFront();
-				diskList.pushBack(aux);
-				disk.roda(0,0,0);
+				//diskList.pushBack(aux);
+				//disk1.roda(0,0,0);
 				break;
 			
 			case 37: // PUT

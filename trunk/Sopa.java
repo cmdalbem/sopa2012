@@ -44,15 +44,17 @@ public class Sopa {
 
 		Memory mem = new Memory(intController, 128, 8);
 		Timer timer = new Timer(intController, globalSynch);
-		Disk disk = new Disk(intController, globalSynch, mem, 1024,
-				"/media/Dados/Titi/Trabalhos/2012/01/Sisop2/trabFinal/sopa2012/disk.txt");
+		Disk disk1 = new Disk(0,intController, globalSynch, mem, 1024,"disk.txt");
+		Disk disk2 = new Disk(1,intController, globalSynch, mem, 1024,"disk.txt");
+		
 		Processor processor = new Processor(intController, globalSynch, mem,
-				console, timer, disk);
+				console, timer, disk1, disk2);
 
 		// start all threads
 		processor.start();
 		timer.start();
-		disk.start();
+		disk1.start();
+		disk2.start();
 		globalSynch.start();
 	}
 }

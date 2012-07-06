@@ -6,7 +6,7 @@ class Processor extends Thread
 	private Memory mem;
 	private ConsoleListener con;
 	private Timer tim;
-	private Disk dis;
+	private Disk disk1, disk2;
 
 	// CPU internal components
 	private int PC;	// Program Counter
@@ -29,19 +29,20 @@ class Processor extends Thread
 	private Kernel kernel;
 	
 	public Processor(IntController i, GlobalSynch gs, Memory m, ConsoleListener c, 
-			Timer t, Disk d)
+			Timer t, Disk d1, Disk d2)
 	{
 		hint = i;
 		synch = gs;
 		mem = m;
 		con = c;
 		tim = t;
-		dis = d;
+		disk1 = d1;
+		disk2 = d2;
 		PC = 0;
 		IR = new int[4];
 		reg = new int[16];
 		flag = new int[3];
-		kernel = new Kernel(i,m,c,t,d,this);
+		kernel = new Kernel(i,m,c,t,d1,d2,this);
 	}
 	
 	public void run()

@@ -13,6 +13,7 @@ class Disk extends Thread
 	private String fileName;
 	private int[] diskImage;
 	private int diskSize;
+	private int id;
 
 	// Disk interface registers
 	private int address;
@@ -35,8 +36,9 @@ class Disk extends Thread
 	public final int END_OF_FILE = 0xFFFFFFFF;
 
 	// Constructor
-	public Disk(IntController i, GlobalSynch gs, Memory m, int s, String name)
+	public Disk(int n, IntController i, GlobalSynch gs, Memory m, int s, String name)
 	{
+		id = n;
 		hint = i;
 		synch = gs;
 		mem = m;
@@ -69,7 +71,7 @@ class Disk extends Thread
 	// The thread that is the disk itself
 	public void run()
 	{
-		try { load(fileName); } catch (IOException e){}
+		try { load(fileName); } catch (IOException e){ System.err.println("Coudln't initialize disk " + id); }
 		while (true)
 		{
 			// wait for some request coming from the processor
@@ -123,7 +125,10 @@ class Disk extends Thread
 			}		
 
 			// generate the interrupt
-			hint.set(5);
+			if(id==0)
+				hint.set(5);
+			else
+				hint.set(6);
 		}
 	}
 

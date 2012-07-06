@@ -145,7 +145,7 @@ class Disk extends Thread
 						bytes[j] = (int) tokemon.sval.charAt(0); 
 					else
 						System.out.println("Unexpected token at disk image!"); 
-				tok = tokemon.nextToken();      
+				tok = tokemon.nextToken();
 			}
 			diskImage[i] = ((bytes[0]&255)<<24) | ((bytes[1]&255)<<16) | 
 				((bytes[2]&255)<<8) | (bytes[3]&255);

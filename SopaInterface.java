@@ -100,11 +100,14 @@ class SopaInterface {
 				Integer.toString(disk) +"\t      " + 
 				Integer.toString(i));
 	}
+	
 	//adds element to list and redisplay list 
 	public static void addToList(int PID, String name){
 		LinkedList changedList = ( (LinkedList) myLinkedLists.get(name));
+
 		//update linked list
 		changedList.add( Integer.toString(PID) );
+		
 		//update screen structure 
 		( (JList) myJLists.get(name) ).setListData(changedList.toArray());
 		jFrame.pack();

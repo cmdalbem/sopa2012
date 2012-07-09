@@ -14,6 +14,7 @@
 
 import java.awt.*;
 import java.awt.event.*;
+import java.util.ArrayList;
 
 import javax.swing.*;
 
@@ -323,45 +324,39 @@ class ProcessDescriptor {
 	private ProcessDescriptor next;
 	private int partition;
 	private boolean isloading;
+	private ArrayList<FileDescriptor> files; 
 
-	public boolean isLoading() { return isloading; }
-	public void setLoaded() { isloading = false; }
-	
-	public int getPID() {
-		return PID;
-	}
-
-	public int getPC() {
-		return PC;
-	}
-
-	public void setPC(int i) {
-		PC = i;
-	}
-
-	public int[] getReg() {
-		return reg;
-	}
-
-	public void setReg(int[] r) {
-		reg = r;
-	}
-
-	public int getPartition() {
-		return partition;
-	}
-
-	public void setPartition(int p) {
-		partition = p;
-	}
-
-	public ProcessDescriptor getNext() {
-		return next;
+	public FileDescriptor addFile(Memory mem)
+	{
+		FileDescriptor f = new FileDescriptor(files.size(), this, mem);
+		files.add(files.size(), f);
+		
+		return f;
 	}
 	
-	public void setNext(ProcessDescriptor n) {
-		next = n;
+	public void removeFile(int id)
+	{
+		files.remove(id);
 	}
+	
+	public FileDescriptor getFile(int id)
+	{
+		return files.get(id);
+	}
+	
+	public boolean 	isLoading() { return isloading; }
+	public void 	setLoaded() { isloading = false; }
+	
+	public int 		getPID() { return PID; }
+	public int 		getPC() { return PC; }
+	public void 	setPC(int i) { PC = i; }
+	public int[] 	getReg() { return reg; }
+	public void 	setReg(int[] r) { reg = r; }
+	public int 		getPartition() { return partition; }
+	public void 	setPartition(int p) { partition = p; }
+	
+	public ProcessDescriptor 	getNext() { return next; }
+	public void 				setNext(ProcessDescriptor n) { next = n;}
 
 	// Constructor
 	public ProcessDescriptor(int pid, int p, boolean loading) {
@@ -370,6 +365,7 @@ class ProcessDescriptor {
 		partition = p;
 		isloading = loading;
 		reg = new int[16];
+		files = new ArrayList<FileDescriptor>();
 	}
 	
 

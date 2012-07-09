@@ -119,7 +119,10 @@ class Kernel
 		// You need to inform the PIDs from the ready and disk Lists
 		SopaInterface.updateDisplay(readyList.getFront().getPID(), readyList.getFront().getPID(), interruptNumber);
 
-		ProcessDescriptor aux = null;
+		// Auxiliary variables
+		ProcessDescriptor paux = null;
+		FileDescriptor faux = null;
+		int[] raux = null;
 
 		// This is the entry point: must check what happened
 		System.err.println("Kernel called for int " + interruptNumber);
@@ -137,8 +140,8 @@ class Kernel
 				//
 				readyList.getFront().setPC(pro.getPC());
 				readyList.getFront().setReg(pro.getReg());
-				aux = readyList.popFront();
-				readyList.pushBack(aux);
+				paux = readyList.popFront();
+				readyList.pushBack(paux);
 				
 				setProcessContext( readyList.getFront() );
 				
@@ -160,22 +163,22 @@ class Kernel
 				//
 				int d = interruptNumber==5 ? 0 : 1;
 				
-				aux = diskLists[d].popFront();
+				paux = diskLists[d].popFront();
 				
 				if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS)
 				{
-					if(aux.isLoading())
+					if(paux.isLoading())
 					{
 						//write on memory the loaded data
-						aux.setLoaded();
+						paux.setLoaded();
 						for(int i=0; i<disks[d].getSize(); i++)
-							mem.superWrite(aux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
+							mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
 					}
-					readyList.pushBack( aux );
+					readyList.pushBack( paux );
 				}				
 				else
 				{
-					killProcess(aux);
+					killProcess(paux);
 					
 					switch(disks[d].getError())
 					{
@@ -215,10 +218,10 @@ class Kernel
 					if(val[0]==0 || val[0]==1)
 					{
 						// create the process without inserting it on readyList
-						aux = createProcess();
-						if(aux!=null)
+						paux = createProcess();
+						if(paux!=null)
 						{
-							diskLists[val[0]].pushBack(aux);					
+							diskLists[val[0]].pushBack(paux);					
 							disks[val[0]].roda( disks[val[0]].OPERATION_LOAD,
 												val[1],
 												0 );
@@ -233,21 +236,42 @@ class Kernel
 			/////////////////////////
 			// SOFTWARE INTERRUPTS //
 			/////////////////////////
-			case 32: // EXIT
+			case 32:
+				// EXIT	PROCESS INT
+				//
 				killCurrentProcess();
 				break;
 				
-			case 34: // OPEN
-				//TODO
+			case 34:
+				// OPEN FILE INT
+				//
+				raux = pro.getReg();
+				
+				if( (raux[0]==0 || raux[0]==1) &&
+					(raux[1]==0 || raux[1]==1))
+				{
+					paux = readyList.getFront();
+					faux = paux.addFile(mem);
+					faux.open( raux[0]==0 ? faux.FILEMODE_R:faux.FILEMODE_W, raux[1], raux[2]);
+				}
+				else
+					System.err.println("Error opening file: invalid parameters.");
+				
 				break;
 				
 			case 35: // CLOSE
-				//TODO
+				raux = pro.getReg();
+				paux = readyList.getFront();
+				
+				faux = paux.getFile(raux[0]);
+				faux.close();
+				paux.removeFile(raux[0]);
+				
 				break;
 				
 			case 36: // GET
 				//TODO
-				aux = readyList.popFront();
+				paux = readyList.popFront();
 				//diskList.pushBack(aux);
 				//disk1.roda(0,0,0);
 				break;

@@ -19,12 +19,12 @@ class Processor extends Thread
 	private final int L = 2;
 
 	// Access methods
-	public int getPC() { return PC; }
-	public void setPC(int i) { PC = i; }
-	public int[] getReg() { return reg; }
-	public void setReg(int[] r) { reg = r; }
-	public int[] getFlag() { return flag; }
-	public void setFlag(int[] f) { flag = f; }
+	synchronized public int getPC() { return PC; }
+	synchronized public void setPC(int i) { PC = i; }
+	synchronized public int[] getReg() { return reg; }
+	synchronized public void setReg(int[] r) { reg = r; }
+	synchronized public int[] getFlag() { return flag; }
+	synchronized public void setFlag(int[] f) { flag = f; }
 
 	// Kernel is like a software in ROM
 	private Kernel kernel;

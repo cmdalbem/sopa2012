@@ -4,8 +4,8 @@ import java.io.StringReader;
 
 class Kernel
 {
-	private final int NPARTITIONS = 12;
 	private final int SLICE = 5;
+	private final int INITPROCESSES = 1;
 	
 	// Access to hardware components, including the processor
 	private IntController hint;
@@ -31,7 +31,7 @@ class Kernel
 	
 	// In the constructor goes initialization code
 	public Kernel(IntController hi, Memory m, ConsoleListener c, 
-			Timer t, Disk d1, Disk d2, int ncps)
+			Timer t, Disk d1, Disk d2, int ncps, int nparts)
 	{
 		hint = hi;
 		mem = m;
@@ -39,6 +39,7 @@ class Kernel
 		tim = t;
 		nextPid = 1;
 		ncpus = ncps;
+		npartitions = nparts;
 		
 		disks = new Disk[2];
 		disks[0] = d1;
@@ -54,20 +55,34 @@ class Kernel
 		diskLists[0] = new ProcessList ("Disk 0");
 		diskLists[1] = new ProcessList ("Disk 1");
 		
-		npartitions = NPARTITIONS;
 		partitionList = new int[npartitions];
 		partitionList[0] = partitionList[1] = PART_SISOP;
 		for(int it=2; it<npartitions; it++)
 			partitionList[it] = PART_FREE;
 	}
 	
-	public void setProcessors(Processor[] ps)
+	public void init(Processor[] ps)
 	{
 		pros = ps;
 		
-		// Creates the dummy process
 		for(int i=0; i<pros.length; i++)
 			runProcess( createDummyProcess(), i );
+		
+		initProcesses(INITPROCESSES);		
+	}
+	
+	private void initProcesses(int count)
+	{
+		ProcessDescriptor paux;
+		
+		for(int i=0; i<count; i++)
+		{
+			paux = new ProcessDescriptor(i+1, 4, false);
+			mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[0].getData(i));
+			readyList.pushBack(paux);			
+		}
+		
+		
 	}
 	
 	public ProcessDescriptor createDummyProcess()
@@ -110,7 +125,7 @@ class Kernel
 		pros[procId].setReg( p.getReg() );
 		mem.setBaseRegister( p.getPartition() * mem.getPartitionSize() );
 		mem.setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
-		p.setTime(SLICE);
+		p.setTime((int) (1 +  Math.random()*10));
 		
 		cpuLists[procId].pushBack(p);
 	}
@@ -126,22 +141,117 @@ class Kernel
 		partitionList[p.getPartition()] = PART_FREE;
 	}
 	
+	synchronized private void saveContext(int cpu)
+	{
+		int pc;
+		int[] reg;
+		ProcessDescriptor paux = null;
+		
+		paux = cpuLists[cpu].getFront();
+		pc = pros[cpu].getPC();
+		paux.setPC(pc);
+		
+		paux = cpuLists[cpu].getFront();
+		reg = pros[cpu].getReg();
+		paux.setReg(reg);
+	}
+	
+	synchronized private void restoreContext(int cpu)
+	{
+		pros[cpu].setPC(cpuLists[cpu].getFront().getPC());
+		pros[cpu].setReg(cpuLists[cpu].getFront().getReg());
+		
+		int pc;
+		int[] reg;
+		ProcessDescriptor paux = null;
+		
+		paux = cpuLists[cpu].getFront();
+		pc = paux.getPC();
+		pros[cpu].setPC(pc);
+		
+		paux = cpuLists[cpu].getFront();
+		reg = paux.getReg();
+		pros[cpu].setReg(reg);
+	}
+	
+	private void handleTerminal()
+	{
+		int[] val = new int[2];
+		boolean success = true;
+		ProcessDescriptor paux = null;
+		
+		// parse the user's entry
+		StreamTokenizer tokenizer = new StreamTokenizer( new StringReader(con.getLine()) );
+		try {
+			for(int i=0; i<2; i++)
+				if(tokenizer.nextToken() != StreamTokenizer.TT_EOF
+					&& tokenizer.ttype == StreamTokenizer.TT_NUMBER)
+						val[i] = (int) tokenizer.nval;
+		} catch (IOException e) {
+			success=false;
+			System.err.println("Could not parse user's entry.");
+		}
+		
+		if(success)
+		{
+			if(val[0]==0 || val[0]==1)
+			{
+				// create the process without inserting it on readyList
+				paux = createProcess();
+				if(paux!=null)
+				{
+					diskLists[val[0]].pushBack(paux);					
+					disks[val[0]].roda( disks[val[0]].OPERATION_LOAD,
+										val[1],
+										0 );
+				}
+			}
+			else
+				System.err.println("Invalid disk entered: please choose Disk 0 or 1.");
+		}
+	}
+	
+	synchronized private void tickAll()
+	{
+		ProcessDescriptor paux = null;
+		
+		for(int i=0; i<ncpus; i++)
+			if( cpuLists[i].getFront().tickTime()==0 )
+			{				
+				cpuLists[i].getFront().setPC(pros[i].getPC());
+				cpuLists[i].getFront().setReg(pros[i].getReg());
+				paux = cpuLists[i].popFront();
+				if(paux.getPID()!=0)
+					readyList.pushBack(paux);
+				
+				paux = readyList.popFront();
+				
+				runProcess( paux, i );
+				
+				System.err.println("Time slice is over! CPU " + i + " now runs: " + cpuLists[i].getFront().getPID());
+			}
+	}
+	
+	synchronized private void updateInterface(int interruptNumber, int cpu)
+	{
+		SopaInterface.updateDisplay(cpuLists[cpu].getFront().getPID(), interruptNumber);
+	}
+	
 	// Each time the kernel runs it have access to all hardware components
 	public void run(int interruptNumber, int cpu)
 	{
-		SopaInterface.updateDisplay(cpuLists[cpu].getFront().getPID(), interruptNumber);
-
 		// Auxiliary variables
 		ProcessDescriptor paux = null;
 		FileDescriptor faux = null;
 		int[] raux = null;
+		
+		updateInterface(interruptNumber,cpu);
 
 		// This is the entry point: must check what happened
 		System.err.println("Kernel called by CPU" + cpu + " for int " + interruptNumber);
 
 		// save context of this processor
-		cpuLists[cpu].getFront().setPC(pros[cpu].getPC());
-		cpuLists[cpu].getFront().setReg(pros[cpu].getReg());
+		saveContext(cpu);
 		switch(interruptNumber)
 		{
 			/////////////////////////
@@ -150,21 +260,7 @@ class Kernel
 			case 2:
 				// TIMER INT
 				//
-				for(int i=0; i<ncpus; i++)
-					if( cpuLists[i].getFront().tickTime()==0 )
-					{				
-						cpuLists[i].getFront().setPC(pros[i].getPC());
-						cpuLists[i].getFront().setReg(pros[i].getReg());
-						paux = cpuLists[i].popFront();
-						if(paux.getPID()!=0)
-							readyList.pushBack(paux);
-						
-						paux = readyList.popFront();
-						
-						runProcess( paux, i );
-						
-						System.err.println("Time slice is over! CPU " + i + " now runs: " + cpuLists[i].getFront().getPID());
-					}
+				tickAll();
 				break;
 			
 			case 3:
@@ -219,38 +315,7 @@ class Kernel
 			case 15:
 				// CONSOLE INT
 				//
-				int[] val = new int[2];
-				boolean success = true;
-				
-				// parse the user's entry
-				StreamTokenizer tokenizer = new StreamTokenizer( new StringReader(con.getLine()) );
-				try {
-					for(int i=0; i<2; i++)
-						if(tokenizer.nextToken() != StreamTokenizer.TT_EOF
-							&& tokenizer.ttype == StreamTokenizer.TT_NUMBER)
-								val[i] = (int) tokenizer.nval;
-				} catch (IOException e) {
-					success=false;
-					System.err.println("Could not parse user's entry.");
-				}
-				
-				if(success)
-				{
-					if(val[0]==0 || val[0]==1)
-					{
-						// create the process without inserting it on readyList
-						paux = createProcess();
-						if(paux!=null)
-						{
-							diskLists[val[0]].pushBack(paux);					
-							disks[val[0]].roda( disks[val[0]].OPERATION_LOAD,
-												val[1],
-												0 );
-						}
-					}
-					else
-						System.err.println("Invalid disk entered: please choose Disk 0 or 1.");
-				}
+				handleTerminal();
 				
 				break;
 			
@@ -315,7 +380,6 @@ class Kernel
 		}
 
 		// restore context of this processor
-		pros[cpu].setPC(cpuLists[cpu].getFront().getPC());
-		pros[cpu].setReg(cpuLists[cpu].getFront().getReg());
+		restoreContext(cpu);
 	}
 }

@@ -17,9 +17,8 @@ class Memory {
 		npartitions = np;
 		memoryWords = new int[ps*np];
 		
-		// Initialize with dummy program
+		// Initialize dummy program
 		init(0, 'J', 'P', 'A', 0);
-		//init(1, 'I', 'N', 'T', 32);
 	}
 
 	// for testing only!!
@@ -50,11 +49,11 @@ class Memory {
 
 	// Here goes some specific methods for the kernel to access memory
 	// bypassing the MMU (do not add base register or test limits)
-	public int superRead(int address) {
+	synchronized public int superRead(int address) {
 		return memoryWords[address];
 	}
 
-	public void superWrite(int address, int data) {
+	synchronized public void superWrite(int address, int data) {
 		memoryWords[address] = data;
 	}
 

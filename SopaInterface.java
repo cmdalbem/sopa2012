@@ -5,20 +5,10 @@ import java.awt.event.*;
 import javax.swing.*;
 
 class SopaInterface {
-	/**
-	 * @author Guilherme Peretti Pezzi
-	 *
-	 * 1st version of Sopa interface (05/10/05)
-	 * Uses static fields and methods to minimize changes on the simulator code
-	 * Send comments, suggestions and bugs to pezzi@inf.ufrgs.br
-	 * 
-	 * 
-	 */
-
 	// display stuff
 	private static GridBagConstraints c;
 	private static Container pane ;
-	private static JFrame jFrame; 
+	private static JFrame window; 
 	private static JPanel jContentPane ;
 	private static JPanel pane2 ;
 	private static JTextArea jTextArea;
@@ -42,19 +32,19 @@ class SopaInterface {
 		//JFrame.setDefaultLookAndFeelDecorated(true);
 		
 		//Create and set up the window.
-		jFrame = getJFrame();
-		jFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		window = getJFrame();
+		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
 		//Set up the content pane.
-		pane = jFrame.getContentPane();
+		pane = window.getContentPane();
 		pane.setLayout(new GridBagLayout());
 		c = new GridBagConstraints();
 		c.fill = GridBagConstraints.BOTH; //HORIZONTAL;
 		addFixComponentsToPane();
 		
 		//Display the window.
-		jFrame.pack();
-		jFrame.setVisible(true);
+		window.pack();
+		window.setVisible(true);
 	}
 
 	// dynamicaly creates process list on jframe 
@@ -90,7 +80,7 @@ class SopaInterface {
 
 		//increments x counter and repack frame
 		lastInsPos++; 
-		jFrame.pack();
+		window.pack();
 	}
 
 	//update text display
@@ -108,7 +98,7 @@ class SopaInterface {
 		
 		//update screen structure 
 		( (JList) myJLists.get(name) ).setListData(changedList.toArray());
-		jFrame.pack();
+		window.pack();
 	}
 
 	//	removes element from list and redisplay list
@@ -125,29 +115,21 @@ class SopaInterface {
 			appendMsg("<INTERFACE> ERROR REMOVING FROM EMPTY LIST: " +name  + "\n" );
 		}
 		( (JList) myJLists.get(name) ).setListData(changedList.toArray());    	
-		jFrame.pack();
+		window.pack();
 	}
 
 	// PRIVATE METHODS   
-	/**
-	 * This method initializes jFrame	
-	 * 	
-	 * @return javax.swing.JFrame	
-	 */
+	//initializes jFrame
 	private static JFrame getJFrame() {
-		if (jFrame == null) {
-			jFrame = new JFrame();
-			jFrame.setSize(new java.awt.Dimension(400,400));
-			jFrame.setContentPane(getJContentPane());
+		if (window == null) {
+			window = new JFrame();
+			window.setSize(new java.awt.Dimension(400,400));
+			window.setContentPane(getJContentPane());
 		}
-		return jFrame;
+		return window;
 	}
 
-	/**
-	 * This method initializes jContentPane	
-	 * 	
-	 * @return javax.swing.JPanel	
-	 */
+	// initializes jContentPane	
 	private static JPanel getJContentPane() {
 		if (jContentPane == null) {
 			jContentPane = new JPanel();

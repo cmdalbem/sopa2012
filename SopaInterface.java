@@ -39,7 +39,7 @@ class SopaInterface {
 		gs =gsynch;
 
 		//fru fru java
-//		JFrame.setDefaultLookAndFeelDecorated(true);
+		//JFrame.setDefaultLookAndFeelDecorated(true);
 		
 		//Create and set up the window.
 		jFrame = getJFrame();
@@ -94,7 +94,7 @@ class SopaInterface {
 	}
 
 	//update text display
-	public static void updateDisplay(int proc, int i)
+	synchronized public static void updateDisplay(int proc, int i)
 	{
 		appendMsg("\n"+ "      " + Integer.toString(proc) + "\t      " + Integer.toString(i));
 	}

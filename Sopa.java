@@ -21,7 +21,8 @@ import java.util.Queue;
 import javax.swing.*;
 
 public class Sopa {
-	private final static int NCPU = 3;
+	private final static int NCPU = 2;
+	private final static int NPARTITIONS = 6;
 	
 	public static void main(String args[]) {
 		// The program models a complete computer with most HW components
@@ -30,7 +31,7 @@ public class Sopa {
 		// has a reference to the processor, so I decided that all software
 		// is under the processor environment: kernel inside processor.
 
-		GlobalSynch globalSynch = new GlobalSynch(500); // quantum of X ms
+		GlobalSynch globalSynch = new GlobalSynch(5); // quantum of X ms
 		IntController intController = new IntController();
 
 		// Create interface
@@ -47,19 +48,19 @@ public class Sopa {
 		console.setInterruptController(intController);
 		console.setGlobalSynch(globalSynch);
 
-		Memory mem = new Memory(intController, 128, 8);
+		Memory mem = new Memory(intController, 128, NPARTITIONS);
 		Timer timer = new Timer(intController, globalSynch);
 		Disk disk1 = new Disk(0,intController, globalSynch, mem, 1024,"disk.txt");
 		Disk disk2 = new Disk(1,intController, globalSynch, mem, 1024,"disk.txt");
 		
-		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, NCPU);
+		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, NCPU, NPARTITIONS);
 		
 		Processor[] procs = new Processor[NCPU];
 		for(int i=0; i<NCPU; i++)
 			procs[i] = new Processor(i,intController, globalSynch, mem,
 				console, timer, disk1, disk2, kernel);
 		
-		kernel.setProcessors(procs);
+		kernel.init(procs);
 
 		// start all threads
 		for(int i=0; i<NCPU; i++)
@@ -186,7 +187,7 @@ class ConsoleListener implements ActionListener {
 		sl.setInterrupt();
 	}
 
-	public String getLine() {
+	synchronized public String getLine() {
 		return l;
 	}
 }
@@ -250,33 +251,24 @@ class IntController {
 	// An additional semaphore is used for concurrent access by multiple
 	// processors.
 
-	private Semaphore semhi;
-	private Semaphore psem;
 	private int number;
 	private Queue<Integer> numbers;
 	private final int memoryInterruptNumber = 3;
 
 	public IntController() {
-		semhi = new Semaphore(1);
-		psem = new Semaphore(1);
 		numbers = new LinkedList<Integer>();
 		number = 0;
 	}
 
-	public void set(int n) {
-		psem.P();
-		
+	synchronized public void set(int n) {
 		if (n == memoryInterruptNumber)
 			number = n;
 		else {
 			numbers.offer(n);
 		}
-		
-		psem.V();
 	}
 
-	public int getAndReset() {
-		psem.P();
+	synchronized public int getAndReset() {
 		int ret;
 		
 		if (number > 0)
@@ -292,7 +284,6 @@ class IntController {
 				ret = numbers.remove();
 		}
 		
-		psem.V();
 		return ret;
 	}
 
@@ -392,13 +383,13 @@ class ProcessDescriptor {
 	public boolean 	isLoading() { return isloading; }
 	public void 	setLoaded() { isloading = false; }
 	
-	public int 		getPID() { return PID; }
-	public int 		getPC() { return PC; }
-	public void 	setPC(int i) { PC = i; }
-	public int[] 	getReg() { return reg; }
-	public void 	setReg(int[] r) { reg = r; }
-	public int 		getPartition() { return partition; }
-	public void 	setPartition(int p) { partition = p; }
+	synchronized public int 	getPID() { return PID; }
+	synchronized public int 	getPC() { return PC; }
+	synchronized public void 	setPC(int i) { PC = i; }
+	synchronized public int[] 	getReg() { return reg; }
+	synchronized public void 	setReg(int[] r) { reg = r; }
+	synchronized public int 	getPartition() { return partition; }
+	synchronized public void 	setPartition(int p) { partition = p; }
 	
 	public ProcessDescriptor 	getNext() { return next; }
 	public void 				setNext(ProcessDescriptor n) { next = n;}
@@ -426,11 +417,11 @@ class ProcessList {
 	private ProcessDescriptor first = null;
 	private ProcessDescriptor last = null;
 
-	public ProcessDescriptor getFront() {
+	synchronized public ProcessDescriptor getFront() {
 		return first;
 	}
 
-	public ProcessDescriptor getBack() {
+	synchronized public ProcessDescriptor getBack() {
 		return last;
 	}
 
@@ -439,7 +430,7 @@ class ProcessList {
 		SopaInterface.addList(myName);
 	}
 
-	public ProcessDescriptor popFront() {
+	synchronized public ProcessDescriptor popFront() {
 		ProcessDescriptor n;
 		if (first != null) {
 			n = first;
@@ -456,7 +447,7 @@ class ProcessList {
 		return null;
 	}
 
-	public void pushBack(ProcessDescriptor n) {
+	synchronized public void pushBack(ProcessDescriptor n) {
 		n.setNext(null);
 		if (last != null)
 			last.setNext(n);

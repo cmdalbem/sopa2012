@@ -13,6 +13,7 @@ class Processor extends Thread
 	private int[] IR;	// Instruction Register
 	private int[] reg;	// general purpose registers
 	private int[] flag;   // flags Z E L
+	private int id;
 	private final int Z = 0;
 	private final int E = 1;
 	private final int L = 2;
@@ -28,9 +29,10 @@ class Processor extends Thread
 	// Kernel is like a software in ROM
 	private Kernel kernel;
 	
-	public Processor(IntController i, GlobalSynch gs, Memory m, ConsoleListener c, 
-			Timer t, Disk d1, Disk d2)
+	public Processor(int _id, IntController i, GlobalSynch gs, Memory m, ConsoleListener c, 
+			Timer t, Disk d1, Disk d2, Kernel k)
 	{
+		id = _id;
 		hint = i;
 		synch = gs;
 		mem = m;
@@ -38,11 +40,12 @@ class Processor extends Thread
 		tim = t;
 		disk1 = d1;
 		disk2 = d2;
+		kernel = k;
 		PC = 0;
 		IR = new int[4];
 		reg = new int[16];
 		flag = new int[3];
-		kernel = new Kernel(i,m,c,t,d1,d2,this);
+		
 	}
 	
 	public void run()
@@ -59,7 +62,7 @@ class Processor extends Thread
 			IR[2] = (RD>>>8) & 255;
 			IR[3] = RD & 255;
 			// print CPU status to check if it is ok
-			System.err.print("processor: PC=" + PC);
+			System.err.print("CPU " + id + ": PC=" + PC);
 			System.err.print(" IR="+IR[0]+" "+IR[1]+" "+IR[2]+" "+IR[3]+" ");
 			
 			PC++;
@@ -68,13 +71,13 @@ class Processor extends Thread
 			execute_basic_instructions();
 
 			// Check for Hardware Interrupt and if so call the kernel
-			int thisInt = hint.get();
+			int thisInt = hint.getAndReset();
 			if ( thisInt != 0)
 			{
 				// Call the kernel passing the interrupt number
-				kernel.run(thisInt);
+				kernel.run(thisInt,id);
 				// Kernel handled the last interrupt
-				hint.reset(thisInt);
+				//hint.reset(thisInt);
 			}
 		}
 	}
@@ -161,7 +164,7 @@ class Processor extends Thread
 														if (IR[0]=='I'&&IR[1]=='N'&&IR[2]=='T')
 														{
 															System.err.println(" [I N T n] ");
-															kernel.run(IR[3]);
+															kernel.run(IR[3], id);
 														}
 														else
 															System.err.println(" [? ? ? ?] ");

@@ -94,11 +94,9 @@ class SopaInterface {
 	}
 
 	//update text display
-	public static void updateDisplay(int proc, int disk, int i)
+	public static void updateDisplay(int proc, int i)
 	{
-		appendMsg("\n"+ "      " + Integer.toString(proc) + "\t      " +
-				Integer.toString(disk) +"\t      " + 
-				Integer.toString(i));
+		appendMsg("\n"+ "      " + Integer.toString(proc) + "\t      " + Integer.toString(i));
 	}
 	
 	//adds element to list and redisplay list 
@@ -196,7 +194,7 @@ class SopaInterface {
 		//		LINE 4
 		c.gridy = 3;
 
-		jTextArea = new JTextArea(" Process \t   Disk \t Interrupt");
+		jTextArea = new JTextArea(" Process \t   Interrupt");
 		scrollPane = new JScrollPane(jTextArea);
 		scrollPane.setPreferredSize(new Dimension(100,300));
 		scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);

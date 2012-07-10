@@ -38,10 +38,12 @@ class FileDescriptor
 		}
 	}
 
-	public void get()
+	public int[] get()
 	{
 		//TODO
+		int[] args = new int[2];
 		
+		return args;
 	}
 	
 	public void put(int data)

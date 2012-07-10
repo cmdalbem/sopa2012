@@ -2,6 +2,9 @@ import java.io.*;
 
 class Disk extends Thread
 {
+	private final int minTurns = 5;
+	private final int maxTurns = 15;
+	
 	// Our disc component has a semaphore to implement it's dependency on
 	// a processor's call. The semaphore is private, and we offer 
 	// a method "roda" that unlocks it. Does it need to be synchronized???
@@ -76,15 +79,16 @@ class Disk extends Thread
 		{
 			// wait for some request coming from the processor
 			sem.P();
-
-			// Processor requested: now I have something to do...
-			for (int i=0; i < 20; ++i)
+			// Processor requested: now I have something to do!
+			
+			// Do some turns to simulate a real disk
+			int turns = (int) (minTurns + Math.random()*(maxTurns-minTurns));
+			for (int i=0; i < turns; ++i)
 			{
 				// sleep just one quantum which is one disc turn here
 				synch.mysleep(1);
 				System.err.println("disk made a turn");
 			}
-			// After so many turns the disk should do its task!!! (???)
 
 			if (address < 0 || address >= diskSize)
 				errorCode = ERRORCODE_ADDRESS_OUT_OF_RANGE;

@@ -15,10 +15,14 @@
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import javax.swing.*;
 
 public class Sopa {
+	private final static int NCPU = 3;
+	
 	public static void main(String args[]) {
 		// The program models a complete computer with most HW components
 		// The kernel, which is the software component, might have been
@@ -48,11 +52,18 @@ public class Sopa {
 		Disk disk1 = new Disk(0,intController, globalSynch, mem, 1024,"disk.txt");
 		Disk disk2 = new Disk(1,intController, globalSynch, mem, 1024,"disk.txt");
 		
-		Processor processor = new Processor(intController, globalSynch, mem,
-				console, timer, disk1, disk2);
+		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, NCPU);
+		
+		Processor[] procs = new Processor[NCPU];
+		for(int i=0; i<NCPU; i++)
+			procs[i] = new Processor(i,intController, globalSynch, mem,
+				console, timer, disk1, disk2, kernel);
+		
+		kernel.setProcessors(procs);
 
 		// start all threads
-		processor.start();
+		for(int i=0; i<NCPU; i++)
+			procs[i].start();
 		timer.start();
 		disk1.start();
 		disk2.start();
@@ -235,39 +246,67 @@ class IntController {
 	// Interruptions from memory are exceptions that need to be handled right
 	// now, and have priority over other Ints. So, memory interrupt has its
 	// own indicator, and the others compete among them using the Semaphore.
+	
+	// An additional semaphore is used for concurrent access by multiple
+	// processors.
 
 	private Semaphore semhi;
-	private int number[] = new int[2];
+	private Semaphore psem;
+	private int number;
+	private Queue<Integer> numbers;
 	private final int memoryInterruptNumber = 3;
 
 	public IntController() {
 		semhi = new Semaphore(1);
+		psem = new Semaphore(1);
+		numbers = new LinkedList<Integer>();
+		number = 0;
 	}
 
 	public void set(int n) {
+		psem.P();
+		
 		if (n == memoryInterruptNumber)
-			number[0] = n;
+			number = n;
 		else {
-			semhi.P();
-			number[1] = n;
+			numbers.offer(n);
 		}
+		
+		psem.V();
 	}
 
-	public int get() {
-		if (number[0] > 0)
-			return number[0];
+	public int getAndReset() {
+		psem.P();
+		int ret;
+		
+		if (number > 0)
+		{
+			ret = number;
+			number = 0;
+		}
 		else
-			return number[1];
+		{
+			if(numbers.size()==0)
+				ret = 0;
+			else
+				ret = numbers.remove();
+		}
+		
+		psem.V();
+		return ret;
 	}
 
-	public void reset(int n) {
+	/*public void reset(int n) {
+		psem.P();
+		
 		if (n == memoryInterruptNumber)
-			number[0] = 0;
+			number = 0;
 		else {
-			number[1] = 0;
-			semhi.V();
+			numbers.remove();
 		}
-	}
+		
+		psem.V();
+	}*/
 }
 
 class Timer extends Thread {
@@ -305,13 +344,15 @@ class Timer extends Thread {
 	// with any "time-to-alarm"
 	public void run() {
 		while (true) {
-			counter = slice;
+			/*counter = slice;
 			while (counter > 0) {
 				synch.mysleep(2);
 				--counter;
 				System.err.println("tick " + counter);
 			}
-			System.err.println("timer INT");
+			System.err.println("timer INT");*/
+			synch.mysleep(2);
+			System.err.println("tick!");
 			hint.set(2);
 		}
 	}
@@ -324,7 +365,8 @@ class ProcessDescriptor {
 	private ProcessDescriptor next;
 	private int partition;
 	private boolean isloading;
-	private ArrayList<FileDescriptor> files; 
+	private ArrayList<FileDescriptor> files;
+	private int time;
 
 	public FileDescriptor addFile(Memory mem)
 	{
@@ -343,6 +385,9 @@ class ProcessDescriptor {
 	{
 		return files.get(id);
 	}
+	
+	public void setTime( int t ) { time = t; }
+	public int tickTime() { System.err.println("Process "+PID+" ticked "+time); return --time; }
 	
 	public boolean 	isLoading() { return isloading; }
 	public void 	setLoaded() { isloading = false; }
@@ -366,6 +411,7 @@ class ProcessDescriptor {
 		isloading = loading;
 		reg = new int[16];
 		files = new ArrayList<FileDescriptor>();
+		time = 0;
 	}
 	
 

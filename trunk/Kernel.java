@@ -28,7 +28,6 @@ class Kernel
 	private final int PART_USED=1;
 	private final int PART_FREE=2;
 	
-	
 	// In the constructor goes initialization code
 	public Kernel(IntController hi, Memory m, ConsoleListener c, 
 			Timer t, Disk d1, Disk d2, int ncps, int nparts)
@@ -81,8 +80,6 @@ class Kernel
 			mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[0].getData(i));
 			readyList.pushBack(paux);			
 		}
-		
-		
 	}
 	
 	public ProcessDescriptor createDummyProcess()
@@ -211,7 +208,7 @@ class Kernel
 		}
 	}
 	
-	synchronized private void tickAll()
+	synchronized private void handleTimerInt()
 	{
 		ProcessDescriptor paux = null;
 		
@@ -260,7 +257,7 @@ class Kernel
 			case 2:
 				// TIMER INT
 				//
-				tickAll();
+				handleTimerInt();
 				break;
 			
 			case 3:

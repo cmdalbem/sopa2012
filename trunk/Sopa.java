@@ -31,14 +31,17 @@ public class Sopa {
 		// has a reference to the processor, so I decided that all software
 		// is under the processor environment: kernel inside processor.
 
-		GlobalSynch globalSynch = new GlobalSynch(5); // quantum of X ms
+		GlobalSynch globalSynch = new GlobalSynch(500); // quantum of X ms
 		IntController intController = new IntController();
 
 		// Create interface
 		SopaInterface.initViewer(globalSynch);
+		
+		// Create graphics
+		Drawer drawer = new Drawer(NCPU);
 
 		// Create window console
-		MyWin mw = new MyWin();
+		ConsoleWindow mw = new ConsoleWindow();
 		mw.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				System.exit(0);
@@ -54,6 +57,8 @@ public class Sopa {
 		Disk disk2 = new Disk(1,intController, globalSynch, mem, 1024,"disk.txt");
 		
 		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, NCPU, NPARTITIONS);
+		
+		drawer.setKernel(kernel);
 		
 		Processor[] procs = new Processor[NCPU];
 		for(int i=0; i<NCPU; i++)
@@ -131,11 +136,11 @@ class GlobalSynch extends Thread {
 	}
 }
 
-class MyWin extends JFrame {
+class ConsoleWindow extends JFrame {
 	private ConsoleListener ml;
 	private JTextField line;
 
-	public MyWin() {
+	public ConsoleWindow() {
 		super("Console");
 		Container c = getContentPane();
 		c.setLayout(new FlowLayout());
@@ -288,15 +293,11 @@ class IntController {
 	}
 
 	/*public void reset(int n) {
-		psem.P();
-		
 		if (n == memoryInterruptNumber)
 			number = 0;
 		else {
 			numbers.remove();
 		}
-		
-		psem.V();
 	}*/
 }
 
@@ -309,40 +310,18 @@ class Timer extends Thread {
 	// count these timer ticks and test for a the time slice end.
 	private IntController hint;
 	private GlobalSynch synch;
-	private int counter = 0;
-	private int slice = 5;
 
 	public Timer(IntController i, GlobalSynch gs) {
 		hint = i;
 		synch = gs;
 	}
 
-	// For the services below, time is expressed in tenths of seconds
-	public void setSlice(int t) {
-		slice = t;
-	}
-
-	public void setTime(int t) {
-		counter = t;
-	}
-
-	public int getTime() {
-		return counter;
-	}
-
 	// This is the thread that keeps track of time and generates the
-	// interrupt when a slice has ended, but can be reset any time
-	// with any "time-to-alarm"
+	// interrupts
 	public void run() {
 		while (true) {
-			/*counter = slice;
-			while (counter > 0) {
-				synch.mysleep(2);
-				--counter;
-				System.err.println("tick " + counter);
-			}
-			System.err.println("timer INT");*/
 			synch.mysleep(2);
+			Drawer.tick();
 			System.err.println("tick!");
 			hint.set(2);
 		}
@@ -428,6 +407,7 @@ class ProcessList {
 	public ProcessList(String name) {
 		myName = name;
 		SopaInterface.addList(myName);
+		Drawer.addList(myName);
 	}
 
 	synchronized public ProcessDescriptor popFront() {
@@ -441,6 +421,7 @@ class ProcessList {
 
 			// Update interface
 			SopaInterface.removeFromList(n.getPID(), myName);
+			Drawer.removeFromList(n.getPID(), myName);
 
 			return n;
 		}
@@ -457,5 +438,6 @@ class ProcessList {
 
 		// Update interface
 		SopaInterface.addToList(n.getPID(), myName);
+		Drawer.addToList(n.getPID(), myName);
 	}
 }

@@ -21,8 +21,8 @@ import java.util.Queue;
 import javax.swing.*;
 
 public class Sopa {
-	private final static int NCPU = 2;
-	private final static int NPARTITIONS = 6;
+	private final static int NCPU = 5;
+	private final static int NPARTITIONS = 12;
 	
 	public static void main(String args[]) {
 		// The program models a complete computer with most HW components
@@ -31,7 +31,7 @@ public class Sopa {
 		// has a reference to the processor, so I decided that all software
 		// is under the processor environment: kernel inside processor.
 
-		GlobalSynch globalSynch = new GlobalSynch(500); // quantum of X ms
+		GlobalSynch globalSynch = new GlobalSynch(50); // quantum of X ms
 		IntController intController = new IntController();
 
 		// Create interface
@@ -110,8 +110,8 @@ class GlobalSynch extends Thread {
 				lock.V();
 			try {
 				sleep(quantum);
-			} catch (InterruptedException e) {
-			}
+				Drawer.tick();
+			} catch (InterruptedException e) {}
 			mywakeup();
 		}
 	}
@@ -321,7 +321,6 @@ class Timer extends Thread {
 	public void run() {
 		while (true) {
 			synch.mysleep(2);
-			Drawer.tick();
 			System.err.println("tick!");
 			hint.set(2);
 		}

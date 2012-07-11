@@ -4,8 +4,9 @@ import java.io.StringReader;
 
 class Kernel
 {
-	private final int SLICE = 5;
-	private final int INITPROCESSES = 1;
+	private final int minSlice = 5;
+	private final int maxSlice = 10;
+	private final int INITIALPROCESSES = 1;
 	
 	// Access to hardware components, including the processor
 	private IntController hint;
@@ -67,18 +68,23 @@ class Kernel
 		for(int i=0; i<pros.length; i++)
 			runProcess( createDummyProcess(), i );
 		
-		initProcesses(INITPROCESSES);		
+		createInitialProcesses(INITIALPROCESSES, 0, 4);		
 	}
 	
-	private void initProcesses(int count)
+	private void createInitialProcesses(int count, int disk, int initPos)
 	{
 		ProcessDescriptor paux;
 		
 		for(int i=0; i<count; i++)
 		{
-			paux = new ProcessDescriptor(i+1, 4, false);
-			mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[0].getData(i));
-			readyList.pushBack(paux);			
+			paux = createProcess();
+			if(paux!=null)
+			{
+				diskLists[disk].pushBack(paux);					
+				disks[disk].roda( disks[disk].OPERATION_LOAD,
+									initPos,
+									0 );
+			}
 		}
 	}
 	
@@ -122,7 +128,7 @@ class Kernel
 		pros[procId].setReg( p.getReg() );
 		mem.setBaseRegister( p.getPartition() * mem.getPartitionSize() );
 		mem.setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
-		p.setTime((int) (1 +  Math.random()*10));
+		p.setTime((int) (minSlice + Math.random()*(maxSlice-minSlice))); //set some random slice time
 		
 		cpuLists[procId].pushBack(p);
 	}
@@ -155,9 +161,6 @@ class Kernel
 	
 	synchronized private void restoreContext(int cpu)
 	{
-		pros[cpu].setPC(cpuLists[cpu].getFront().getPC());
-		pros[cpu].setReg(cpuLists[cpu].getFront().getReg());
-		
 		int pc;
 		int[] reg;
 		ProcessDescriptor paux = null;
@@ -232,6 +235,7 @@ class Kernel
 	synchronized private void updateInterface(int interruptNumber, int cpu)
 	{
 		SopaInterface.updateDisplay(cpuLists[cpu].getFront().getPID(), interruptNumber);
+		Drawer.drawEvent(interruptNumber, cpu);
 	}
 	
 	// Each time the kernel runs it have access to all hardware components
@@ -288,9 +292,7 @@ class Kernel
 					}
 				}				
 				else
-				{
-					//killProcess(paux); //???
-					
+				{				
 					switch(disks[d].getError())
 					{
 						case 1: //disk.ERRORCODE_SOMETHING_WRONG:
@@ -306,6 +308,13 @@ class Kernel
 				}
 				
 				readyList.pushBack( paux );
+				for(int i=0; i<ncpus; i++)
+					if(cpuLists[i].getFront().getPID()==0)
+					{
+						cpuLists[i].popFront();
+						runProcess( readyList.popFront(), i );
+						break;
+					}
 				
 				break;
 			
@@ -328,6 +337,7 @@ class Kernel
 			case 34:
 				// OPEN FILE INT
 				//
+				//TODO
 				raux = pros[cpu].getReg();
 				
 				if( (raux[0]==0 || raux[0]==1) &&
@@ -343,6 +353,7 @@ class Kernel
 				break;
 				
 			case 35: // CLOSE
+				//TODO
 				raux = pros[cpu].getReg();
 				paux = cpuLists[cpu].getFront();
 				
@@ -353,6 +364,7 @@ class Kernel
 				break;
 				
 			case 36: // GET
+				//TODO
 				raux = pros[cpu].getReg();
 				paux = readyList.getFront();
 				

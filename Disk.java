@@ -2,8 +2,8 @@ import java.io.*;
 
 class Disk extends Thread
 {
-	private final int minTurns = 5;
-	private final int maxTurns = 15;
+	private final int minTurns = 10;
+	private final int maxTurns = 30;
 	
 	// Our disc component has a semaphore to implement it's dependency on
 	// a processor's call. The semaphore is private, and we offer 

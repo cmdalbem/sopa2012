@@ -4,6 +4,8 @@ import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.Queue;
 
 import javax.swing.*;
 
@@ -12,8 +14,18 @@ public class Drawer
 {
 	private static DrawingArea da;
 	private static Kernel kernel;
-	private static HashMap myLinkedLists = new HashMap();
+	private static Map<String,Queue<Integer>> lists;
+	int frameWidth, frameHeight;
 	private int ncpus;
+	
+	private final int DISTY = 50;
+	private final int INITX = 10;
+	private final int INITBARSX = INITX+45;
+	private final int INITY = 0;
+	private final int INITBARSY = INITY-10;
+	private final int XVAR = 5;
+	
+	
     
     public void setKernel(Kernel k)
     {
@@ -23,6 +35,7 @@ public class Drawer
     Drawer(int nc) 
     {
     	ncpus = nc;
+    	lists = new HashMap<String,Queue<Integer>>();
     	
         // Create a frame
         JFrame frame = new JFrame();
@@ -38,47 +51,37 @@ public class Drawer
         frame.getContentPane().add(da);
 
         // Display the frame
-        int frameWidth = 600;
-        int frameHeight = 300;
+        Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
+        frameWidth = (int) (d.width * 0.8);
+        frameHeight = (int) (DISTY*(3.5+ncpus));
         frame.setSize(frameWidth, frameHeight);
         frame.setVisible(true);
     }
-    
-    public static void addList(String name)
-    {
-    	myLinkedLists.put(name, new LinkedList() );
-    }
-    
+      
     public static void addToList(int PID, String name){
-		LinkedList changedList = ( (LinkedList) myLinkedLists.get(name));
-
-		//update linked list
-		changedList.add( Integer.toString(PID) );
-		
-		//update screen structure 
-		( (JList) myJLists.get(name) ).setListData(changedList.toArray());
-		window.pack();
+    	Queue<Integer> listaux = lists.get(name);
+    	listaux.offer(PID);
 	}
     
     public static void removeFromList(int PID, String name){
-		LinkedList changedList = ( (LinkedList) myLinkedLists.get(name));
-		int test = -1;
-		if( !changedList.isEmpty() ){
-			test = Integer.parseInt( (String) changedList.removeFirst() );
-			if ( test != PID ) 
-			{
-				appendMsg("<INTERFACE> ERROR REMOVING " + PID + " FROM LIST: "+ name  + "\n" );
-			}else;
-		}else{
-			appendMsg("<INTERFACE> ERROR REMOVING FROM EMPTY LIST: " +name  + "\n" );
-		}
-		( (JList) myJLists.get(name) ).setListData(changedList.toArray());    	
-		window.pack();
+    	Queue<Integer> listaux = lists.get(name);
+    	
+		if( !listaux.isEmpty() )
+			listaux.poll();
 	}
+    
+    public static void addList(String name){
+    	lists.put(name, new LinkedList<Integer>());
+    }
     
     public static void tick()
     {
     	da.tick();
+    }
+    
+    public static void drawEvent(int event, int cpu)
+    {
+    	da.drawEvent(event, cpu);
     }
 
     class DrawingArea extends JComponent
@@ -86,55 +89,162 @@ public class Drawer
     	BufferedImage image=null;
 		Graphics2D g2d;
 		private int x;
+		private int[] lastDisk; 
+		private int[] lastCpu;
+    	
 		
     	// Constructor
 		public DrawingArea()
 		{
-			setBackground(Color.WHITE);
-			
-			x = 0;
+			x=0;
+			lastDisk = new int[2];
+			for(int i=0; i<2; i++)
+				lastDisk[i] = -1;
+			lastCpu = new int[ncpus];
+			for(int i=0; i<ncpus; i++)
+				lastCpu[i] = -1;
 		}
 		
-		public void tick()
-		{
-			g2d.setColor( Color.BLACK );
-			g2d.drawRect(x, 10, 1, 10);
-			++x;
-			
-			repaint();
-		}
-    	
     	public void paintComponent(Graphics g)
 		{
 			super.paintComponent(g);
 
 			//  Custom code to support painting from the BufferedImage
 			if (image == null)
-			{
 				createEmptyImage();
-			}
 
 			g.drawImage(image, 0, 0, null);
 		}
     	
-    	private final int DISTY = 30;
-    	private final int INITX = 10;
+    	public void drawEvent(int event, int cpu)
+    	{
+    		if(event!=2)
+    		{
+    			int y = INITBARSY-5 + (cpu+1)*DISTY;
+    			g2d.drawString(Integer.toString(event), INITBARSX+x-2, y);
+    			g2d.drawLine(INITBARSX+x, y, INITBARSX+x, y+5);
+    		}
+    	}
+    	
+    	private void drawPID(int pid, int y)
+    	{
+			g2d.drawString(Integer.toString(pid), INITBARSX+x-2, y);
+			g2d.drawLine(INITBARSX+x, y-20, INITBARSX+x, y-10);
+    	}
+    	
+		public void tick()
+		{	
+			Queue<Integer> listaux = null;
+			
+			// draw reference bar
+			g2d.setColor( Color.red );
+			g2d.fillRect(INITBARSX+x, 10, XVAR, 1);
+			g2d.drawLine(INITBARSX+x, 10, INITBARSX+x, 13);
+			
+			g2d.setColor( Color.black );
+			int y = INITBARSY;
+
+			// draw CPUs bars
+			for(int i=0; i<ncpus; i++)
+			{
+				y+=DISTY;
+				listaux = lists.get("CPU "+i);
+				// idle cpu
+				if(listaux.isEmpty()||listaux.peek()==0)
+				{
+					lastCpu[i] = -1;
+					g2d.setColor(Color.gray);
+				}			
+				else
+				{
+					if(lastCpu[i]==-1 || lastCpu[i]!=listaux.peek())
+					{
+						// new process, draw label
+						lastCpu[i]=listaux.peek();
+						g2d.setColor(Color.black);
+						drawPID(lastCpu[i], y+30);
+					}
+					g2d.setColor(Color.black);					
+				}
+				g2d.fillRect(INITBARSX+x, y, XVAR, 10);
+			}
+
+			// draw Disks bars
+			for(int i=0; i<2; i++)
+			{
+				y+=DISTY;
+				listaux = lists.get("Disk "+i);
+				
+				// idle disk
+				if( listaux.isEmpty() )
+				{
+					g2d.setColor(Color.gray);
+					lastDisk[i] = -1;
+				}
+				else
+				{
+					if(lastDisk[i]==-1 || lastDisk[i]!=listaux.peek())
+					{
+						// new process, draw label
+						lastDisk[i]=listaux.peek();
+						g2d.setColor(Color.black);
+						drawPID(lastDisk[i], y+30);
+					}
+					g2d.setColor(Color.black);
+				}
+				g2d.fillRect(INITBARSX+x, y, XVAR, 10);
+			}
+			
+			//update the global x positioner
+			x+=XVAR;
+			if(x+INITBARSX>frameWidth)
+			{
+				x = 0;
+				g2d.clearRect(INITBARSX, 0, frameWidth, frameHeight); //clear bars area
+				drawDisksSeparator();
+			}
+			
+			repaint();
+		}
     	
     	private void createEmptyImage()
 		{
-			image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+    		int y = INITY;
+    		
+    		image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
 			g2d = (Graphics2D)image.getGraphics();
 			g2d.setColor(Color.BLACK);
+			g2d.setFont( new Font ("Arial", Font.BOLD, 14) );
+			g2d.setBackground(Color.white);
 			
-			int y = 15;
+			g2d.clearRect(0, 0, frameWidth, frameHeight);
+			
+			// cpu labels
 			for(int i=0; i<ncpus; i++)
 			{
 				y+=DISTY;
 				g2d.drawString("CPU " + i, INITX, y);
 			}
 
-			g2d.drawString("Disc 1", INITX, y+=DISTY);
-			g2d.drawString("Disc 2", INITX, y+=DISTY);
+			drawDisksSeparator();
+			
+			// disk labels
+			g2d.setColor(Color.BLACK);
+			y+=DISTY;
+			g2d.drawString("Disk 0", INITX, y);
+			y+=DISTY;
+			g2d.drawString("Disk 1", INITX, y);
+			
+			//g2d.drawRect(y, y, width, height)
+			
+			g2d.setFont( new Font ("Arial", 0, 12) );
 		}
+    	
+    	private void drawDisksSeparator()
+    	{
+    		int y = INITY + ncpus*DISTY + DISTY/2;
+    		g2d.setColor(new Color(200,200,200));
+			g2d.drawLine(30, y, frameWidth-30, y);
+    	}
     }
 }

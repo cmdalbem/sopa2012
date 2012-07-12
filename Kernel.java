@@ -1,6 +1,8 @@
 import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
+import java.util.LinkedList;
+import java.util.Queue;
 
 class Kernel
 {
@@ -20,6 +22,23 @@ class Kernel
 	private int[] partitionList;
 	private int npartitions;
 	private int ncpus;
+	
+	class DiskRequest
+	{
+		public int disk;
+		public int op;
+		public int add;
+		public int data;
+		
+		public DiskRequest(int whichdisk, int operation, int address, int wdata)
+		{
+			disk = whichdisk;
+			op = operation;
+			add = address;
+			data = wdata;
+		}
+	}
+	private Queue<DiskRequest> requests;
 	
 	
 	private final int PART_SISOP=0;
@@ -41,6 +60,7 @@ class Kernel
 		disks = new Disk[2];
 		disks[0] = d1;
 		disks[1] = d2;
+		requests = new LinkedList<DiskRequest>();
 		
 		readyList = new ProcessList ("Ready");
 		
@@ -65,24 +85,28 @@ class Kernel
 		for(int i=0; i<procs.length; i++)
 			runProcess( createDummyProcess(), i );
 		
-		createInitialProcesses(Config.NINITIALPROCESSES, 0, Config.PROCSINITALPOS);		
+		createInitialProcesses(Config.NINITIALPROCESSES, Config.PROCSINITALPOS);		
 	}
 	
-	private void createInitialProcesses(int count, int disk, int initPos)
+	private void createInitialProcesses(int count,  int initPos)
 	{
 		ProcessDescriptor paux;
+		int disk=0;
 		
 		for(int i=0; i<count; i++)
 		{
+			disk = (int) (Math.random()*2);
 			paux = createProcess();
 			if(paux!=null)
 			{
 				diskLists[disk].pushBack(paux);					
-				disks[disk].roda( disks[disk].OPERATION_LOAD,
-									initPos,
-									0 );
+				requests.add( new DiskRequest(disk, disks[disk].OPERATION_LOAD, initPos, 0) );
 			}
 		}
+		
+		//launch the first request, which will subsequently launch the others
+		DiskRequest r = requests.poll();
+		disks[r.disk].roda(r.op, r.add, r.data);
 	}
 	
 	public ProcessDescriptor createDummyProcess()
@@ -104,7 +128,7 @@ class Kernel
 		int part = findFreePartition();
 		if(part==-1)
 		{
-			System.err.println("Error creating new process: no partitions available.");
+			System.out.println("Error creating new process: no memory available.");
 			return null;
 		}			
 		else
@@ -187,7 +211,7 @@ class Kernel
 						val[i] = (int) tokenizer.nval;
 		} catch (IOException e) {
 			success=false;
-			System.err.println("Could not parse user's entry.");
+			System.out.println("Could not parse user's entry.");
 		}
 		
 		if(success)
@@ -198,14 +222,17 @@ class Kernel
 				paux = createProcess();
 				if(paux!=null)
 				{
-					diskLists[val[0]].pushBack(paux);					
-					disks[val[0]].roda( disks[val[0]].OPERATION_LOAD,
-										val[1],
-										0 );
+					diskLists[val[0]].pushBack(paux);
+					DiskRequest r = new DiskRequest(val[0], disks[val[0]].OPERATION_LOAD, val[1], 0); 
+					if(requests.isEmpty())
+						disks[r.disk].roda(r.op, r.add, r.data);
+					else
+						requests.add(r);
+					
 				}
 			}
 			else
-				System.err.println("Invalid disk entered: please choose Disk 0 or 1.");
+				System.out.println("Invalid disk entered: please choose Disk 0 or 1.");
 		}
 	}
 	
@@ -250,7 +277,8 @@ class Kernel
 		
 		paux = diskLists[d].popFront();
 		
-		if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS) //if attempt was succeeded
+		// check if reading attempt was succeeded
+		if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS)
 		{
 			if(paux.isLoading())
 			{
@@ -258,6 +286,17 @@ class Kernel
 				paux.setLoaded();
 				for(int i=0; i<disks[d].getSize(); i++)
 					mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
+				
+				// As we have loaded a new process, there may be idle CPUs
+				// If that's the case, we remove the Dummy process and replace it
+				//  with our new process.
+				for(int i=0; i<ncpus; i++)
+					if(cpuLists[i].getFront().getPID()==0)
+					{
+						cpuLists[i].popFront();
+						runProcess( readyList.popFront(), i );
+						break;
+					}
 			}
 		}				
 		else
@@ -277,13 +316,13 @@ class Kernel
 		}
 		
 		readyList.pushBack( paux );
-		for(int i=0; i<ncpus; i++)
-			if(cpuLists[i].getFront().getPID()==0)
-			{
-				cpuLists[i].popFront();
-				runProcess( readyList.popFront(), i );
-				break;
-			}
+		
+		//make the disk run for the next request, if there are any
+		if(!requests.isEmpty())
+		{
+			DiskRequest r = requests.poll();
+			disks[r.disk].roda(r.op, r.add, r.data);
+		}
 	}
 	
 	// Each time the kernel runs it have access to all hardware components

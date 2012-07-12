@@ -60,7 +60,7 @@ class Disk extends Thread
 		errorCode = ERRORCODE_SUCCESS;
 		sem.V();
 	}
-
+	
 	// After disk traps an interruption, kernel retrieve its results
 	public int getError() { return errorCode; }
 	public int getSize() { return readSize; }
@@ -80,9 +80,8 @@ class Disk extends Thread
 			int turns = (int) (Config.minTurns + Math.random()*(Config.maxTurns-Config.minTurns));
 			for (int i=0; i < turns; ++i)
 			{
-				// sleep just one quantum which is one disc turn here
 				synch.mysleep(1);
-				System.err.println("disk made a turn");
+				//System.err.println("disk made a turn");
 			}
 
 			if (address < 0 || address >= diskSize)

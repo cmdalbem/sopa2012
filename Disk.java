@@ -2,16 +2,12 @@ import java.io.*;
 
 class Disk extends Thread
 {
-	private final int minTurns = 10;
-	private final int maxTurns = 30;
-	
 	// Our disc component has a semaphore to implement it's dependency on
 	// a processor's call. The semaphore is private, and we offer 
 	// a method "roda" that unlocks it. Does it need to be synchronized???
 	// It needs a semaphore to avoid busy waiting, but...
 	private IntController hint;
 	private GlobalSynch synch;
-	private Memory mem;
 	private Semaphore sem;
 	private String fileName;
 	private int[] diskImage;
@@ -39,12 +35,11 @@ class Disk extends Thread
 	public final int END_OF_FILE = 0xFFFFFFFF;
 
 	// Constructor
-	public Disk(int n, IntController i, GlobalSynch gs, Memory m, int s, String name)
+	public Disk(int n, IntController i, GlobalSynch gs, int s, String name)
 	{
 		id = n;
 		hint = i;
 		synch = gs;
-		mem = m;
 		sem = new Semaphore(0);
 		// remember size and create disk memory
 		diskSize = s;
@@ -82,7 +77,7 @@ class Disk extends Thread
 			// Processor requested: now I have something to do!
 			
 			// Do some turns to simulate a real disk
-			int turns = (int) (minTurns + Math.random()*(maxTurns-minTurns));
+			int turns = (int) (Config.minTurns + Math.random()*(Config.maxTurns-Config.minTurns));
 			for (int i=0; i < turns; ++i)
 			{
 				// sleep just one quantum which is one disc turn here

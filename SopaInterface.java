@@ -43,6 +43,9 @@ class SopaInterface {
 		addFixComponentsToPane();
 		
 		//Display the window.
+		Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
+		Dimension size = window.getPreferredSize();  
+		window.setLocation(d.width/2 - size.width/2, (int) (d.height*0.3 - size.height/2));
 		window.pack();
 		window.setVisible(true);
 	}
@@ -86,7 +89,8 @@ class SopaInterface {
 	//update text display
 	synchronized public static void updateDisplay(int proc, int i)
 	{
-		appendMsg("\n"+ "      " + Integer.toString(proc) + "\t      " + Integer.toString(i));
+		if(i!=2)
+			appendMsg("\n"+ "      " + Integer.toString(proc) + "\t      " + Integer.toString(i));
 	}
 	
 	//adds element to list and redisplay list 

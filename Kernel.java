@@ -21,6 +21,7 @@ class Kernel
 	private int npartitions;
 	private int ncpus;
 	
+	
 	private final int PART_SISOP=0;
 	private final int PART_USED=1;
 	private final int PART_FREE=2;
@@ -64,7 +65,7 @@ class Kernel
 		for(int i=0; i<procs.length; i++)
 			runProcess( createDummyProcess(), i );
 		
-		createInitialProcesses(Config.NINITIALPROCESSES, 0, 4);		
+		createInitialProcesses(Config.NINITIALPROCESSES, 0, Config.PROCSINITALPOS);		
 	}
 	
 	private void createInitialProcesses(int count, int disk, int initPos)
@@ -120,7 +121,7 @@ class Kernel
 		if(p==null)
 			p = createDummyProcess();
 		
-		System.err.println("Sending to execute process " + p.getPID() + " with PC: " + p.getPC());
+		//System.err.println("Sending to execute process " + p.getPID() + " with PC: " + p.getPC());
 		procs[procId].setPC( p.getPC() );
 		procs[procId].setReg( p.getReg() );
 		procs[procId].getMMU().setBaseRegister( p.getPartition() * mem.getPartitionSize() );
@@ -216,7 +217,7 @@ class Kernel
 		{
 			paux = cpuLists[i].getFront();
 			
-			if( paux.tickTime()==0 )
+			if( paux!=null && paux.tickTime()==0 )
 			{				
 				System.err.println("Time is over for process " + cpuLists[i].getFront().getPID() + ", saving the PC=" + procs[i].getPC());
 				procs[i].sem.P();
@@ -264,13 +265,13 @@ class Kernel
 			switch(disks[d].getError())
 			{
 				case 1: //disk.ERRORCODE_SOMETHING_WRONG:
-					System.err.println("Error trying to read from disc: something went wrong!");
+					System.out.println("Error trying to read from disc: something went wrong!");
 					break;
 				case 2: //disk.ERRORCODE_ADDRESS_OUT_OF_RANGE:
-					System.err.println("Error trying to read from disc: address out of range.");
+					System.out.println("Error trying to read from disc: address out of range.");
 					break;
 				case 3: //disk.ERRORCODE_MISSING_EOF:
-					System.err.println("Error trying to read from disc: missing EOF.");
+					System.out.println("Error trying to read from disc: missing EOF.");
 					break;
 			}
 		}
@@ -293,13 +294,13 @@ class Kernel
 		FileDescriptor faux = null;
 		int[] raux = null;
 		
-		updateInterface(interruptNumber,cpu);
-
-		// This is the entry point: must check what happened
 		System.err.println("Kernel called by CPU" + cpu + " for int " + interruptNumber);
-
+		
+		updateInterface(interruptNumber,cpu);
+		
 		// save context of this processor
 		saveContext(cpu);
+		
 		switch(interruptNumber)
 		{
 			/////////////////////////
@@ -308,7 +309,7 @@ class Kernel
 			case 1:
 				// ILLEGAL INSTRUCTION INT
 				//
-				System.err.println("Illegal/unknown instruction.");
+				System.out.println("Illegal/unknown instruction.");
 				killCurrentProcess(cpu);
 				break;
 			
@@ -321,7 +322,7 @@ class Kernel
 			case 3:
 				// ILLEGAL MEMORY ACCESS
 				//
-				System.err.println("Illegal memory access!");
+				System.out.println("Illegal memory access!");
 				killCurrentProcess(cpu);
 				break;
 			
@@ -365,7 +366,7 @@ class Kernel
 					faux.open( raux[0]==0 ? faux.FILEMODE_R:faux.FILEMODE_W, raux[1], raux[2]);
 				}
 				else
-					System.err.println("Error opening file: invalid parameters.");
+					System.out.println("Error opening file: invalid parameters.");
 				
 				break;
 				
@@ -397,14 +398,12 @@ class Kernel
 				
 			case 46: // PRINT
 				raux = procs[cpu].getReg();
-				System.out.println( (raux[0]>>>24) + " " + ((raux[0]>>>16)&255) + " " + ((raux[0]>>>8)&255) + " " + (raux[0]&255));
-				
+				System.out.println( "PRINT: " + (raux[0]>>>24) + " " + ((raux[0]>>>16)&255) + " " + ((raux[0]>>>8)&255) + " " + (raux[0]&255));
 				break;
 				
 			default:
 				System.err.println("Unknown interrupt: " + interruptNumber);
 		}
-
 		// restore context of this processor
 		restoreContext(cpu);
 	}

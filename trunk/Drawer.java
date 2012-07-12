@@ -18,12 +18,12 @@ public class Drawer
 	int frameWidth, frameHeight;
 	private int ncpus;
 	
+	// Interface layout constants
 	private final int DISTY = 50;
 	private final int INITX = 10;
 	private final int INITBARSX = INITX+45;
 	private final int INITY = 0;
 	private final int INITBARSY = INITY-10;
-	private final int XVAR = 5;
 	
 	
     
@@ -55,6 +55,7 @@ public class Drawer
         frameWidth = (int) (d.width * 0.8);
         frameHeight = (int) (DISTY*(3.5+ncpus));
         frame.setSize(frameWidth, frameHeight);
+        frame.setLocation(d.width/2 - frameWidth/2, d.height - frameHeight);
         frame.setVisible(true);
     }
       
@@ -118,8 +119,9 @@ public class Drawer
     	
     	public void drawEvent(int event, int cpu)
     	{
-    		if(event!=2)
+    		//if(event!=2)
     		{
+    			g2d.setColor(Color.red);
     			int y = INITBARSY-5 + (cpu+1)*DISTY;
     			g2d.drawString(Integer.toString(event), INITBARSX+x-2, y);
     			g2d.drawLine(INITBARSX+x, y, INITBARSX+x, y+5);
@@ -128,6 +130,7 @@ public class Drawer
     	
     	private void drawPID(int pid, int y)
     	{
+    		g2d.setColor(Color.black);
 			g2d.drawString(Integer.toString(pid), INITBARSX+x-2, y);
 			g2d.drawLine(INITBARSX+x, y-20, INITBARSX+x, y-10);
     	}
@@ -137,8 +140,8 @@ public class Drawer
 			Queue<Integer> listaux = null;
 			
 			// draw reference bar
-			g2d.setColor( Color.red );
-			g2d.fillRect(INITBARSX+x, 10, XVAR, 1);
+			g2d.setColor( Color.DARK_GRAY );
+			g2d.fillRect(INITBARSX+x, 10, Config.XVAR, 1);
 			g2d.drawLine(INITBARSX+x, 10, INITBARSX+x, 13);
 			
 			g2d.setColor( Color.black );
@@ -161,12 +164,11 @@ public class Drawer
 					{
 						// new process, draw label
 						lastCpu[i]=listaux.peek();
-						g2d.setColor(Color.black);
 						drawPID(lastCpu[i], y+30);
 					}
 					g2d.setColor(Color.black);					
 				}
-				g2d.fillRect(INITBARSX+x, y, XVAR, 10);
+				g2d.fillRect(INITBARSX+x, y, Config.XVAR, 10);
 			}
 
 			// draw Disks bars
@@ -192,11 +194,11 @@ public class Drawer
 					}
 					g2d.setColor(Color.black);
 				}
-				g2d.fillRect(INITBARSX+x, y, XVAR, 10);
+				g2d.fillRect(INITBARSX+x, y, Config.XVAR, 10);
 			}
 			
 			//update the global x positioner
-			x+=XVAR;
+			x+=Config.XVAR;
 			if(x+INITBARSX>frameWidth)
 			{
 				x = 0;

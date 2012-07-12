@@ -1,18 +1,12 @@
 class Memory {
 	// This is the memory system component.
-	private IntController hint;
 	private int[] memoryWords;
 	private int partitionSize;
 	private int npartitions;
 
-	// MMU: base and limit registers
-	private int limitRegister; // specified in logical addresses
-	private int baseRegister; // add base to get physical address
-
 	// constructor
-	public Memory(IntController intc, int ps, int np) {
+	public Memory(int ps, int np) {
 		// remember size and create memory
-		hint = intc;
 		partitionSize = ps;
 		npartitions = np;
 		memoryWords = new int[ps*np];
@@ -39,13 +33,7 @@ class Memory {
 	// This is correct: the memory interruption must be set in our
 	// simulated machine only if the kernel was right and the process itself
 	// tries to access an address which is out of its logical space.
-	public void setLimitRegister(int val) {
-		limitRegister = val;
-	};
 
-	public void setBaseRegister(int val) {
-		baseRegister = val;
-	};
 
 	// Here goes some specific methods for the kernel to access memory
 	// bypassing the MMU (do not add base register or test limits)
@@ -61,19 +49,44 @@ class Memory {
 	public synchronized void init(int address, int a, int b, int c, int d) {
 		memoryWords[address] = (a << 24) + (b << 16) + (c << 8) + d;
 	}
+}
 
+class MMU
+{
+	// MMU: base and limit registers
+	private int limitRegister; // specified in logical addresses
+	private int baseRegister; // add base to get physical address
+	private IntController hint;
+	private Memory mem;
+	
+	public MMU(Memory m, IntController i)
+	{
+		mem = m;
+		hint = i;
+	}
+	
+	public void setLimitRegister(int val)
+	{
+		limitRegister = val;
+	}
+	
+	public void setBaseRegister(int val)
+	{
+		baseRegister = val;
+	}
+	
 	public synchronized int read(int address) {
 		if (address >= limitRegister) {
 			hint.set(3); //memory access violation interruption
 			return 0;
 		} else
-			return memoryWords[baseRegister + address];
+			return mem.superRead(baseRegister + address);
 	}
 
 	public synchronized void write(int address, int data) {
 		if (address >= limitRegister)
 			hint.set(3); //memory access violation interruption
 		else
-			memoryWords[baseRegister + address] = data;
+			mem.superWrite(baseRegister + address, data);
 	}
 }

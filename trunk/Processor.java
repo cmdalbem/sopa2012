@@ -3,11 +3,8 @@ class Processor extends Thread
 	// Access to hardware components
 	private IntController hint;
 	private GlobalSynch synch;
-	private Memory mem;
-	private ConsoleListener con;
-	private Timer tim;
-	private Disk disk1, disk2;
-
+	private MMU mmu;
+	
 	// CPU internal components
 	private int PC;	// Program Counter
 	private int[] IR;	// Instruction Register
@@ -17,6 +14,7 @@ class Processor extends Thread
 	private final int Z = 0;
 	private final int E = 1;
 	private final int L = 2;
+	public Semaphore sem;
 
 	// Access methods
 	synchronized public int getPC() { return PC; }
@@ -29,23 +27,21 @@ class Processor extends Thread
 	// Kernel is like a software in ROM
 	private Kernel kernel;
 	
+	public MMU getMMU() { return mmu; }
+	
 	public Processor(int _id, IntController i, GlobalSynch gs, Memory m, ConsoleListener c, 
 			Timer t, Disk d1, Disk d2, Kernel k)
 	{
 		id = _id;
 		hint = i;
 		synch = gs;
-		mem = m;
-		con = c;
-		tim = t;
-		disk1 = d1;
-		disk2 = d2;
 		kernel = k;
 		PC = 0;
 		IR = new int[4];
 		reg = new int[16];
 		flag = new int[3];
-		
+		mmu = new MMU(m,i);
+		sem = new Semaphore(1);
 	}
 	
 	public void run()
@@ -54,8 +50,11 @@ class Processor extends Thread
 		{
 			// sleep a tenth of a second
 			synch.mysleep(2);
+			
+			sem.P();
+			
 			// read from memory in the address indicated by PC
-			int RD = mem.read(PC);
+			int RD = mmu.read(PC);
 			// break the 32bit word into 4 separate bytes
 			IR[0] = RD>>>24;
 			IR[1] = (RD>>>16) & 255;
@@ -64,21 +63,20 @@ class Processor extends Thread
 			// print CPU status to check if it is ok
 			System.err.print("CPU " + id + ": PC=" + PC);
 			System.err.print(" IR="+IR[0]+" "+IR[1]+" "+IR[2]+" "+IR[3]+" ");
-			
-			PC++;
 
+			PC = PC+1;
+			
 			// Execute basic instructions of the architecture
 			execute_basic_instructions();
+			
+			sem.V();
+			
+			System.err.println("PC on CPU " + id + " is " + PC + " after executing the basic instructions.");
 
 			// Check for Hardware Interrupt and if so call the kernel
 			int thisInt = hint.getAndReset();
 			if ( thisInt != 0)
-			{
-				// Call the kernel passing the interrupt number
 				kernel.run(thisInt,id);
-				// Kernel handled the last interrupt
-				//hint.reset(thisInt);
-			}
 		}
 	}
 
@@ -87,7 +85,7 @@ class Processor extends Thread
 		if ((IR[0]=='L') && (IR[1]=='M'))
 		{
 			System.err.println(" [L M r m] ");
-			reg[IR[2]] = mem.read(IR[3]);
+			reg[IR[2]] = mmu.read(IR[3]);
 		}
 		else
 			if ((IR[0]=='L') && (IR[1]=='C'))
@@ -99,7 +97,7 @@ class Processor extends Thread
 				if ((IR[0]=='W') && (IR[1]=='M'))
 				{
 					System.err.println(" [W M r m] ");
-					mem.write(IR[3],reg[IR[2]]);
+					mmu.write(IR[3],reg[IR[2]]);
 				}
 				else
 					if ((IR[0]=='S') && (IR[1]=='U'))
@@ -167,6 +165,11 @@ class Processor extends Thread
 															kernel.run(IR[3], id);
 														}
 														else
+														{
 															System.err.println(" [? ? ? ?] ");
+															kernel.run(1, id);
+															//System.exit(0); //for debug!!!
+															
+														}
 	}
 }

@@ -14,6 +14,9 @@
 
 import java.awt.*;
 import java.awt.event.*;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -21,24 +24,33 @@ import java.util.Queue;
 import javax.swing.*;
 
 public class Sopa {
-	private final static int NCPU = 5;
-	private final static int NPARTITIONS = 12;
 	
 	public static void main(String args[]) {
+		
 		// The program models a complete computer with most HW components
 		// The kernel, which is the software component, might have been
 		// created here also, but Processor has a reference to it and it
 		// has a reference to the processor, so I decided that all software
 		// is under the processor environment: kernel inside processor.
-
-		GlobalSynch globalSynch = new GlobalSynch(50); // quantum of X ms
+	
+		// Redirects System.err
+		if(Config.LOGPRINTS)
+		{
+			try {
+				System.setErr( new PrintStream(new FileOutputStream("system_err.txt")) );
+			} catch (FileNotFoundException e1) {
+				System.out.println("Coudln't open file for logging System.err.");
+			}
+		}
+		
+		GlobalSynch globalSynch = new GlobalSynch(Config.QUANTUM); // quantum of X ms
 		IntController intController = new IntController();
 
 		// Create interface
 		SopaInterface.initViewer(globalSynch);
 		
 		// Create graphics
-		Drawer drawer = new Drawer(NCPU);
+		Drawer drawer = new Drawer(Config.NCPU);
 
 		// Create window console
 		ConsoleWindow mw = new ConsoleWindow();
@@ -51,24 +63,24 @@ public class Sopa {
 		console.setInterruptController(intController);
 		console.setGlobalSynch(globalSynch);
 
-		Memory mem = new Memory(intController, 128, NPARTITIONS);
+		Memory mem = new Memory(128, Config.NPARTITIONS);
 		Timer timer = new Timer(intController, globalSynch);
-		Disk disk1 = new Disk(0,intController, globalSynch, mem, 1024,"disk.txt");
-		Disk disk2 = new Disk(1,intController, globalSynch, mem, 1024,"disk.txt");
+		Disk disk1 = new Disk(0,intController, globalSynch, 1024,"disk.txt");
+		Disk disk2 = new Disk(1,intController, globalSynch, 1024,"disk.txt");
 		
-		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, NCPU, NPARTITIONS);
+		Kernel kernel = new Kernel(intController,mem,console, timer,disk1,disk2, Config.NCPU, Config.NPARTITIONS);
 		
 		drawer.setKernel(kernel);
 		
-		Processor[] procs = new Processor[NCPU];
-		for(int i=0; i<NCPU; i++)
+		Processor[] procs = new Processor[Config.NCPU];
+		for(int i=0; i<Config.NCPU; i++)
 			procs[i] = new Processor(i,intController, globalSynch, mem,
 				console, timer, disk1, disk2, kernel);
 		
 		kernel.init(procs);
 
 		// start all threads
-		for(int i=0; i<NCPU; i++)
+		for(int i=0; i<Config.NCPU; i++)
 			procs[i].start();
 		timer.start();
 		disk1.start();
@@ -150,8 +162,13 @@ class ConsoleWindow extends JFrame {
 		ml = new ConsoleListener();
 		line.addActionListener(ml);
 		ml.setTextField(line);
+		
 		setSize(400, 80);
-		setVisible(true);
+		Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
+		Dimension size = getPreferredSize();  
+        setLocation(d.width/2 - size.width/2, 0);
+		
+        setVisible(true);
 	}
 
 	public ConsoleListener getListener() {
@@ -321,7 +338,7 @@ class Timer extends Thread {
 	public void run() {
 		while (true) {
 			synch.mysleep(2);
-			System.err.println("tick!");
+			//System.err.println("tick!");
 			hint.set(2);
 		}
 	}
@@ -356,7 +373,11 @@ class ProcessDescriptor {
 	}
 	
 	public void setTime( int t ) { time = t; }
-	public int tickTime() { System.err.println("Process "+PID+" ticked "+time); return --time; }
+	synchronized public int tickTime()
+	{
+		//System.err.println("Process "+PID+" ticked "+time);
+		return --time;
+	}
 	
 	public boolean 	isLoading() { return isloading; }
 	public void 	setLoaded() { isloading = false; }

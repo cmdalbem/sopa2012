@@ -4,17 +4,13 @@ import java.io.StringReader;
 
 class Kernel
 {
-	private final int minSlice = 5;
-	private final int maxSlice = 10;
-	private final int INITIALPROCESSES = 1;
-	
 	// Access to hardware components, including the processor
 	private IntController hint;
 	private Memory mem;
 	private ConsoleListener con;
 	private Timer tim;
 	private Disk[] disks;
-	private Processor[] pros;
+	private Processor[] procs;
 	
 	// Data used by the kernel
 	private int nextPid;
@@ -63,12 +59,12 @@ class Kernel
 	
 	public void init(Processor[] ps)
 	{
-		pros = ps;
+		procs = ps;
 		
-		for(int i=0; i<pros.length; i++)
+		for(int i=0; i<procs.length; i++)
 			runProcess( createDummyProcess(), i );
 		
-		createInitialProcesses(INITIALPROCESSES, 0, 4);		
+		createInitialProcesses(Config.NINITIALPROCESSES, 0, 4);		
 	}
 	
 	private void createInitialProcesses(int count, int disk, int initPos)
@@ -124,11 +120,12 @@ class Kernel
 		if(p==null)
 			p = createDummyProcess();
 		
-		pros[procId].setPC( p.getPC() );
-		pros[procId].setReg( p.getReg() );
-		mem.setBaseRegister( p.getPartition() * mem.getPartitionSize() );
-		mem.setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
-		p.setTime((int) (minSlice + Math.random()*(maxSlice-minSlice))); //set some random slice time
+		System.err.println("Sending to execute process " + p.getPID() + " with PC: " + p.getPC());
+		procs[procId].setPC( p.getPC() );
+		procs[procId].setReg( p.getReg() );
+		procs[procId].getMMU().setBaseRegister( p.getPartition() * mem.getPartitionSize() );
+		procs[procId].getMMU().setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
+		p.setTime((int) (Config.minSlice + Math.random()*(Config.maxSlice-Config.minSlice))); //set some random slice time
 		
 		cpuLists[procId].pushBack(p);
 	}
@@ -151,11 +148,11 @@ class Kernel
 		ProcessDescriptor paux = null;
 		
 		paux = cpuLists[cpu].getFront();
-		pc = pros[cpu].getPC();
+		pc = procs[cpu].getPC();
 		paux.setPC(pc);
 		
 		paux = cpuLists[cpu].getFront();
-		reg = pros[cpu].getReg();
+		reg = procs[cpu].getReg();
 		paux.setReg(reg);
 	}
 	
@@ -167,11 +164,11 @@ class Kernel
 		
 		paux = cpuLists[cpu].getFront();
 		pc = paux.getPC();
-		pros[cpu].setPC(pc);
+		procs[cpu].setPC(pc);
 		
 		paux = cpuLists[cpu].getFront();
 		reg = paux.getReg();
-		pros[cpu].setReg(reg);
+		procs[cpu].setReg(reg);
 	}
 	
 	private void handleTerminal()
@@ -216,10 +213,17 @@ class Kernel
 		ProcessDescriptor paux = null;
 		
 		for(int i=0; i<ncpus; i++)
-			if( cpuLists[i].getFront().tickTime()==0 )
+		{
+			paux = cpuLists[i].getFront();
+			
+			if( paux.tickTime()==0 )
 			{				
-				cpuLists[i].getFront().setPC(pros[i].getPC());
-				cpuLists[i].getFront().setReg(pros[i].getReg());
+				System.err.println("Time is over for process " + cpuLists[i].getFront().getPID() + ", saving the PC=" + procs[i].getPC());
+				procs[i].sem.P();
+					paux.setPC(procs[i].getPC());
+					paux.setReg(procs[i].getReg());
+				procs[i].sem.V();
+				
 				paux = cpuLists[i].popFront();
 				if(paux.getPID()!=0)
 					readyList.pushBack(paux);
@@ -230,12 +234,55 @@ class Kernel
 				
 				System.err.println("Time slice is over! CPU " + i + " now runs: " + cpuLists[i].getFront().getPID());
 			}
+		}
 	}
 	
 	synchronized private void updateInterface(int interruptNumber, int cpu)
 	{
 		SopaInterface.updateDisplay(cpuLists[cpu].getFront().getPID(), interruptNumber);
 		Drawer.drawEvent(interruptNumber, cpu);
+	}
+	
+	synchronized private void handleDiskInt(int d)
+	{
+		ProcessDescriptor paux = null;
+		
+		paux = diskLists[d].popFront();
+		
+		if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS) //if attempt was succeeded
+		{
+			if(paux.isLoading())
+			{
+				//write on memory the loaded data
+				paux.setLoaded();
+				for(int i=0; i<disks[d].getSize(); i++)
+					mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
+			}
+		}				
+		else
+		{				
+			switch(disks[d].getError())
+			{
+				case 1: //disk.ERRORCODE_SOMETHING_WRONG:
+					System.err.println("Error trying to read from disc: something went wrong!");
+					break;
+				case 2: //disk.ERRORCODE_ADDRESS_OUT_OF_RANGE:
+					System.err.println("Error trying to read from disc: address out of range.");
+					break;
+				case 3: //disk.ERRORCODE_MISSING_EOF:
+					System.err.println("Error trying to read from disc: missing EOF.");
+					break;
+			}
+		}
+		
+		readyList.pushBack( paux );
+		for(int i=0; i<ncpus; i++)
+			if(cpuLists[i].getFront().getPID()==0)
+			{
+				cpuLists[i].popFront();
+				runProcess( readyList.popFront(), i );
+				break;
+			}
 	}
 	
 	// Each time the kernel runs it have access to all hardware components
@@ -258,6 +305,13 @@ class Kernel
 			/////////////////////////
 			// HARDWARE INTERRUPTS //
 			/////////////////////////
+			case 1:
+				// ILLEGAL INSTRUCTION INT
+				//
+				System.err.println("Illegal/unknown instruction.");
+				killCurrentProcess(cpu);
+				break;
+			
 			case 2:
 				// TIMER INT
 				//
@@ -277,44 +331,7 @@ class Kernel
 			case 6:
 				// DISK 2 INT
 				//
-				int d = interruptNumber==5 ? 0 : 1;
-				
-				paux = diskLists[d].popFront();
-				
-				if(disks[d].getError()==disks[d].ERRORCODE_SUCCESS) //if attempt was succeeded
-				{
-					if(paux.isLoading())
-					{
-						//write on memory the loaded data
-						paux.setLoaded();
-						for(int i=0; i<disks[d].getSize(); i++)
-							mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
-					}
-				}				
-				else
-				{				
-					switch(disks[d].getError())
-					{
-						case 1: //disk.ERRORCODE_SOMETHING_WRONG:
-							System.err.println("Error trying to read from disc: something went wrong!");
-							break;
-						case 2: //disk.ERRORCODE_ADDRESS_OUT_OF_RANGE:
-							System.err.println("Error trying to read from disc: address out of range.");
-							break;
-						case 3: //disk.ERRORCODE_MISSING_EOF:
-							System.err.println("Error trying to read from disc: missing EOF.");
-							break;
-					}
-				}
-				
-				readyList.pushBack( paux );
-				for(int i=0; i<ncpus; i++)
-					if(cpuLists[i].getFront().getPID()==0)
-					{
-						cpuLists[i].popFront();
-						runProcess( readyList.popFront(), i );
-						break;
-					}
+				handleDiskInt(interruptNumber==5 ? 0 : 1);
 				
 				break;
 			
@@ -338,7 +355,7 @@ class Kernel
 				// OPEN FILE INT
 				//
 				//TODO
-				raux = pros[cpu].getReg();
+				raux = procs[cpu].getReg();
 				
 				if( (raux[0]==0 || raux[0]==1) &&
 					(raux[1]==0 || raux[1]==1))
@@ -354,7 +371,7 @@ class Kernel
 				
 			case 35: // CLOSE
 				//TODO
-				raux = pros[cpu].getReg();
+				raux = procs[cpu].getReg();
 				paux = cpuLists[cpu].getFront();
 				
 				faux = paux.getFile(raux[0]);
@@ -365,12 +382,12 @@ class Kernel
 				
 			case 36: // GET
 				//TODO
-				raux = pros[cpu].getReg();
+				raux = procs[cpu].getReg();
 				paux = readyList.getFront();
 				
 				faux = paux.getFile(raux[0]);
 				raux = faux.get();
-				pros[cpu].setReg(raux);
+				procs[cpu].setReg(raux);
 				
 				break;
 			
@@ -379,7 +396,7 @@ class Kernel
 				break;
 				
 			case 46: // PRINT
-				raux = pros[cpu].getReg();
+				raux = procs[cpu].getReg();
 				System.out.println( (raux[0]>>>24) + " " + ((raux[0]>>>16)&255) + " " + ((raux[0]>>>8)&255) + " " + (raux[0]&255));
 				
 				break;

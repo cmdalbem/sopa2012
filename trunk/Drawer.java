@@ -119,7 +119,7 @@ public class Drawer
     	
     	public void drawEvent(int event, int cpu)
     	{
-    		//if(event!=2)
+    		if(event!=2)
     		{
     			g2d.setColor(Color.red);
     			int y = INITBARSY-5 + (cpu+1)*DISTY;
@@ -130,9 +130,9 @@ public class Drawer
     	
     	private void drawPID(int pid, int y)
     	{
-    		g2d.setColor(Color.black);
-			g2d.drawString(Integer.toString(pid), INITBARSX+x-2, y);
-			g2d.drawLine(INITBARSX+x, y-20, INITBARSX+x, y-10);
+    		g2d.setColor(Color.DARK_GRAY);
+			g2d.drawString(Integer.toString(pid), INITBARSX+x-3, y);
+			g2d.drawLine(INITBARSX+x, y-20, INITBARSX+x, y-12);
     	}
     	
 		public void tick()

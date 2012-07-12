@@ -71,7 +71,7 @@ class Processor extends Thread
 			
 			sem.V();
 			
-			System.err.println("PC on CPU " + id + " is " + PC + " after executing the basic instructions.");
+			//System.err.println("PC on CPU " + id + " is " + PC + " after executing the basic instructions.");
 
 			// Check for Hardware Interrupt and if so call the kernel
 			int thisInt = hint.getAndReset();
@@ -162,14 +162,14 @@ class Processor extends Thread
 														if (IR[0]=='I'&&IR[1]=='N'&&IR[2]=='T')
 														{
 															System.err.println(" [I N T n] ");
+															sem.V();
 															kernel.run(IR[3], id);
 														}
 														else
 														{
 															System.err.println(" [? ? ? ?] ");
-															kernel.run(1, id);
-															//System.exit(0); //for debug!!!
-															
+															sem.V();
+															kernel.run(1, id);															
 														}
 	}
 }

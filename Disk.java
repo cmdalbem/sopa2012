@@ -23,16 +23,16 @@ class Disk extends Thread
 	private int errorCode;
 
 	// Some codes to get the meaning of the interface.
-	// You can use the codes inside the kernel, like: dis.OPERATION_READ
-	public final int OPERATION_READ = 0;
-	public final int OPERATION_WRITE = 1;
-	public final int OPERATION_LOAD = 2;
-	public final int ERRORCODE_SUCCESS = 0;
-	public final int ERRORCODE_SOMETHING_WRONG = 1;
-	public final int ERRORCODE_ADDRESS_OUT_OF_RANGE = 2;
-	public final int ERRORCODE_MISSING_EOF = 3;
-	public final int BUFFER_SIZE = 128;
-	public final int END_OF_FILE = 0xFFFFFFFF;
+	// You can use the codes inside the kernel, like: Disk.OPERATION_READ
+	public final static int OPERATION_READ = 0;
+	public final static int OPERATION_WRITE = 1;
+	public final static int OPERATION_LOAD = 2;
+	public final static int ERRORCODE_SUCCESS = 0;
+	public final static int ERRORCODE_SOMETHING_WRONG = 1;
+	public final static int ERRORCODE_ADDRESS_OUT_OF_RANGE = 2;
+	public final static int ERRORCODE_MISSING_EOF = 3;
+	public final static int BUFFER_SIZE = 128;
+	public final static int END_OF_FILE = 0xFFFFFFFF;
 
 	// Constructor
 	public Disk(int n, IntController i, GlobalSynch gs, int s, String name)

@@ -1,61 +1,34 @@
 class FileDescriptor
 {
-	private Memory mem;
 	private ProcessDescriptor proc;
 	
 	private int address;
 	private int disk;
 	private int mode;
 	private int size;
-	private int readerPos;
+	private int pos;
 	private int id;
 	
-	public final int FILEMODE_W = 0;
-	public final int FILEMODE_R = 1;
+	public final static int FILEMODE_W = 0;
+	public final static int FILEMODE_R = 1;
 	
-	public FileDescriptor(int i, ProcessDescriptor p, Memory m)
+	public FileDescriptor(int i, ProcessDescriptor p, int mod, int dis, int add)
 	{
 		id = i;
-		mem = m;
 		proc = p;
-	}
-	
-	public void open(int m, int d, int add)
-	{
-		mode = m;
+		
+		mode = mod;
 		address = add;
-		disk = d;
-		readerPos = 0;
-		
-		//TODO
-		if(mode==FILEMODE_W)
-		{
-			size = 0;
-		}
-		else
-		{
-			
-		}
+		disk = dis;
+		pos = 0;
 	}
 
-	public int[] get()
-	{
-		//TODO
-		int[] args = new int[2];
-		
-		return args;
-	}
+	public int getId() { return id; }
+	public int getDisk() { return disk; }
+	public int getMode() { return mode; }
+	public int getPos() { return pos; }
 	
-	public void put(int data)
-	{
-		//TODO
-		
-	}
+	public void incPos() { ++pos; }
 	
-	public void close()
-	{
-		//TODO
-		
-	}
-
+	public void setSize(int s) { size = s; }
 }

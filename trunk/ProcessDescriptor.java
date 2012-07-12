@@ -1,4 +1,4 @@
-import java.util.ArrayList;
+import java.util.HashMap;
 
 class ProcessDescriptor {
 	private int PID;
@@ -6,22 +6,33 @@ class ProcessDescriptor {
 	private int[] reg;
 	private ProcessDescriptor next;
 	private int partition;
-	private boolean isloading;
-	private ArrayList<FileDescriptor> files;
+	private HashMap<Integer,FileDescriptor> files;
 	private int time;
+	private int nextFileId;
+	private int flag;
+	private FileDescriptor hangingFile=null;
+	
+	public final static int FLAG_RUNNING = 1;
+	public final static int FLAG_LOADING = 2;
+	public final static int FLAG_OPEN = 3;
+	public final static int FLAG_CLOSE = 4;
+	public final static int FLAG_GET = 5;
+	public final static int FLAG_PUT = 6;
 
-	public FileDescriptor addFile(Memory mem)
+	public FileDescriptor openFile(int mod, int dis, int add)
 	{
-		FileDescriptor f = new FileDescriptor(files.size(), this, mem);
-		files.add(files.size(), f);
+		FileDescriptor f = new FileDescriptor(nextFileId, this, mod, dis, add);
+		files.put(nextFileId, f);
+		++nextFileId;
+		
+		hangingFile = f; 
 		
 		return f;
 	}
 	
-	public void removeFile(int id)
-	{
-		files.remove(id);
-	}
+	public void removeFile(int id) { files.remove(id); }
+	public void removeFile(FileDescriptor f) { files.remove(f.getId()); }
+	public FileDescriptor getHangingFile() { return hangingFile; }
 	
 	public FileDescriptor getFile(int id)
 	{
@@ -35,8 +46,10 @@ class ProcessDescriptor {
 		return --time;
 	}
 	
-	public boolean 	isLoading() { return isloading; }
-	public void 	setLoaded() { isloading = false; }
+	public boolean 	isLoading() { return flag==FLAG_LOADING; }
+	public void 	resetFlag() { flag = FLAG_RUNNING; }
+	public void		setFlag(int f) { flag = f; }
+	public int		getFlag() { return flag; } 
 	
 	synchronized public int 	getPID() { return PID; }
 	synchronized public int 	getPC() { return PC; }
@@ -54,10 +67,11 @@ class ProcessDescriptor {
 		PID = pid;
 		PC = 0;
 		partition = p;
-		isloading = loading;
+		flag = loading ? FLAG_LOADING : FLAG_RUNNING;
 		reg = new int[16];
-		files = new ArrayList<FileDescriptor>();
+		files = new HashMap<Integer,FileDescriptor>();
 		time = 0;
+		nextFileId = 0;
 	}
 	
 

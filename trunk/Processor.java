@@ -165,12 +165,15 @@ class Processor extends Thread
 															System.err.println(" [I N T n] ");
 															sem.V();
 															kernel.run(IR[3], id);
+															sem.P();
+													
 														}
 														else
 														{
 															System.err.println(" [? ? ? ?] ");
 															sem.V();
-															kernel.run(1, id);															
+															kernel.run(1, id);
+															sem.P();
 														}
 	}
 }

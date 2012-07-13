@@ -24,6 +24,12 @@ class Kernel
 	private int npartitions;
 	private int ncpus;
 	
+	synchronized private ProcessList 	getCpuList(int cpu) { return cpuLists[cpu]; }
+	synchronized private ProcessList 	getReadyList() { return readyList; }
+	synchronized private ProcessList 	getDiskList(int cpu) { return diskLists[cpu]; }
+	synchronized private Disk 			getDisk(int d) { return disks[d]; }
+	synchronized private Processor 		getProcessor(int d) { return procs[d]; }
+	
 	class DiskRequest
 	{
 		public int disk;
@@ -102,7 +108,7 @@ class Kernel
 			paux = createProcess();
 			if(paux!=null)
 			{
-				diskLists[disk].pushBack(paux);					
+				getDiskList(disk).pushBack(paux);					
 				queueDiskRequest(disk, Disk.OPERATION_LOAD, initPos, 0);
 			}
 		}
@@ -145,19 +151,19 @@ class Kernel
 			p = createDummyProcess();
 		
 		//System.err.println("Sending to execute process " + p.getPID() + " with PC: " + p.getPC());
-		procs[procId].setPC( p.getPC() );
-		procs[procId].setReg( p.getReg() );
-		procs[procId].getMMU().setBaseRegister( p.getPartition() * mem.getPartitionSize() );
-		procs[procId].getMMU().setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
+		getProcessor(procId).setPC( p.getPC() );
+		getProcessor(procId).setReg( p.getReg() );
+		getProcessor(procId).getMMU().setBaseRegister( p.getPartition() * mem.getPartitionSize() );
+		getProcessor(procId).getMMU().setLimitRegister( p.getPartition() * mem.getPartitionSize() + mem.getPartitionSize() - 1 );
 		p.setTime((int) (Config.minSlice + Math.random()*(Config.maxSlice-Config.minSlice))); //set some random slice time
 		
-		cpuLists[procId].pushBack(p);
+		getCpuList(procId).pushBack(p);
 	}
 	
 	synchronized private void killCurrentProcess(int procId)
 	{
-		killProcess( cpuLists[procId].popFront() );
-		runProcess( readyList.popFront(), procId );
+		killProcess( getCpuList(procId).popFront() );
+		runProcess( getReadyList().popFront(), procId );
 	}
 	
 	private void killProcess(ProcessDescriptor p)
@@ -171,29 +177,29 @@ class Kernel
 		int[] reg;
 		ProcessDescriptor paux = null;
 		
-		paux = cpuLists[cpu].getFront();
-		pc = procs[cpu].getPC();
+		paux = getCpuList(cpu).getFront();
+		pc = getProcessor(cpu).getPC();
 		paux.setPC(pc);
 		
-		paux = cpuLists[cpu].getFront();
-		reg = procs[cpu].getReg();
+		paux = getCpuList(cpu).getFront();
+		reg = getProcessor(cpu).getReg();
 		paux.setReg(reg);
 	}
 	
 	synchronized private void restoreContext(int cpu)
 	{
-		ProcessDescriptor paux = cpuLists[cpu].getFront();
+		ProcessDescriptor paux = getCpuList(cpu).getFront();
 		if(paux!=null)
 		{
-			procs[cpu].setPC(paux.getPC());
-			procs[cpu].setReg(paux.getReg());
+			getProcessor(cpu).setPC(paux.getPC());
+			getProcessor(cpu).setReg(paux.getReg());
 		}
 	}
 	
 	private void queueDiskRequest(int whichdisk, int operation, int address, int wdata)
 	{
 		if(diskReqs.get(whichdisk).isEmpty())
-			disks[whichdisk].roda(operation, address, wdata);
+			getDisk(whichdisk).roda(operation, address, wdata);
 		else
 			diskReqs.get(whichdisk).add( new DiskRequest(whichdisk, operation, address, wdata) );
 	}
@@ -224,7 +230,7 @@ class Kernel
 				paux = createProcess();
 				if(paux!=null)
 				{
-					diskLists[val[0]].pushBack(paux);
+					getDiskList(val[0]).pushBack(paux);
 					queueDiskRequest(val[0], Disk.OPERATION_LOAD, val[1], 0);
 				}
 			}
@@ -239,31 +245,31 @@ class Kernel
 		
 		for(int i=0; i<ncpus; i++)
 		{
-			paux = cpuLists[i].getFront();
+			paux = getCpuList(i).getFront();
 			
 			if( paux!=null && paux.tickTime()==0 )
 			{
-				System.err.println("Time is over for process " + cpuLists[i].getFront().getPID() + ", saving the PC=" + procs[i].getPC());
-				procs[i].sem.P();
-					paux.setPC(procs[i].getPC());
-					paux.setReg(procs[i].getReg());
+				System.err.println("Time is over for process " + getCpuList(i).getFront().getPID() + ", saving the PC=" + getProcessor(i).getPC());
+				getProcessor(i).sem.P();
+					paux.setPC(getProcessor(i).getPC());
+					paux.setReg(getProcessor(i).getReg());
 				
-					paux = cpuLists[i].popFront();
+					paux = getCpuList(i).popFront();
 					if(paux.getPID()!=0)
-						readyList.pushBack(paux);
+						getReadyList().pushBack(paux);
 					
-					paux = readyList.popFront();
+					paux = getReadyList().popFront();
 					runProcess( paux, i );
-				procs[i].sem.V();
+				getProcessor(i).sem.V();
 				
-				System.err.println("Time slice is over! CPU " + i + " now runs: " + cpuLists[i].getFront().getPID());
+				System.err.println("Time slice is over! CPU " + i + " now runs: " + getCpuList(i).getFront().getPID());
 			}
 		}
 	}
 	
 	synchronized private void updateInterface(int interruptNumber, int cpu)
 	{
-		SopaInterface.updateDisplay(cpuLists[cpu].getFront().getPID(), interruptNumber);
+		SopaInterface.updateDisplay(getCpuList(cpu).getFront().getPID(), interruptNumber);
 		Drawer.drawEvent(interruptNumber, cpu);
 	}
 	
@@ -271,15 +277,15 @@ class Kernel
 	{
 		ProcessDescriptor paux = null;
 		FileDescriptor faux = null;
-		int[] raux = procs[cpu].getReg();
+		int[] raux = getProcessor(cpu).getReg();
 		
-		paux = diskLists[d].popFront();
+		paux = getDiskList(d).popFront();
 		if(paux==null)
 			return 1;
 		int flag = paux.getFlag();
 		paux.resetFlag(); //reset hanging flag
 		
-		if(disks[d].getError()==Disk.ERRORCODE_SUCCESS)
+		if(getDisk(d).getError()==Disk.ERRORCODE_SUCCESS)
 		{
 			// Disk attempt was SUCCESSFULL!
 			//
@@ -288,14 +294,14 @@ class Kernel
 			if(flag==ProcessDescriptor.FLAG_LOADING)
 			{
 				//write on memory the loaded data
-				for(int i=0; i<disks[d].getSize(); i++)
-					mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
+				for(int i=0; i<getDisk(d).getSize(); i++)
+					mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, getDisk(d).getData(i));
 			}
 			else if(flag == ProcessDescriptor.FLAG_OPEN) //process was opening a file for reading
 			{
 				faux = paux.getHangingFile();
 				//update the effective size of the file
-				faux.setSize( disks[d].getSize() );
+				faux.setSize( getDisk(d).getSize() );
 				//set registers with information about the operation
 				raux[1] = 0;
 				raux[0] = faux.getId();
@@ -318,7 +324,7 @@ class Kernel
 				faux = paux.getHangingFile();
 				if(faux.getPos() < faux.getSize())
 					faux.incPos();
-				int data = disks[faux.getDisk()].getData(0);
+				int data = getDisk(faux.getDisk()).getData(0);
 				//set registers with information about the operation
 				raux[0] = data;
 				raux[1] = 0;
@@ -331,7 +337,7 @@ class Kernel
 			// Disk attempt was UNSUCCESSFULL
 			//
 			
-			switch(disks[d].getError())
+			switch(getDisk(d).getError())
 			{
 				case Disk.ERRORCODE_SOMETHING_WRONG:
 					System.out.println("Error trying to read from disc: something went wrong!");
@@ -363,17 +369,17 @@ class Kernel
 		}
 		
 		// Done with all special handlings, put back this process for running
-		readyList.pushBack( paux );
+		getReadyList().pushBack( paux );
 		
 		// If we loaded a new process, there may be idle CPUs
 		// If that's the case, we remove the Dummy process and replace it
 		//  with our new process.
 		/*if(flag==ProcessDescriptor.FLAG_LOADING)
 			for(int i=0; i<ncpus; i++)
-				if(cpuLists[i].getFront().getPID()==0)
+				if(getCpuList(i].getFront().getPID()==0)
 				{
-					cpuLists[i].popFront();
-					runProcess( readyList.popFront(), i );
+					getCpuList(i].popFront();
+					runProcess( getReadyList().popFront(), i );
 					break;
 				}*/
 		
@@ -381,7 +387,7 @@ class Kernel
 		if(!diskReqs.get(d).isEmpty())
 		{
 			DiskRequest r = diskReqs.get(d).poll();
-			disks[r.disk].roda(r.op, r.add, r.data);
+			getDisk(r.disk).roda(r.op, r.add, r.data);
 		}
 		
 		return 0;
@@ -457,12 +463,12 @@ class Kernel
 			case 34:
 				// OPEN FILE INT
 				//
-				raux = procs[cpu].getReg();
+				raux = getProcessor(cpu).getReg();
 				
 				if( (raux[0]==0 || raux[0]==1) &&
 					(raux[1]==0 || raux[1]==1))
 				{
-					paux = cpuLists[cpu].getFront();
+					paux = getCpuList(cpu).getFront();
 					int mode = raux[0]==0 ? FileDescriptor.FILEMODE_R:FileDescriptor.FILEMODE_W;
 					faux = paux.openFile(mode, raux[1], raux[2]);
 					if(mode == FileDescriptor.FILEMODE_R)
@@ -472,8 +478,8 @@ class Kernel
 						//queue the disk request for opening the file
 						queueDiskRequest(raux[1], Disk.OPERATION_LOAD, raux[2], 0 );
 						//remove from CPU Queue and insert on Disk Queue
-						diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
-						runProcess(readyList.popFront(),cpu);
+						getDiskList(raux[1]).pushBack( getCpuList(cpu).popFront() );
+						runProcess(getReadyList().popFront(),cpu);
 						
 						System.err.println("Requested for opening file on address " + raux[2] );
 					}
@@ -484,8 +490,8 @@ class Kernel
 				break;
 				
 			case 35: // CLOSE
-				raux = procs[cpu].getReg();
-				paux = cpuLists[cpu].getFront();
+				raux = getProcessor(cpu).getReg();
+				paux = getCpuList(cpu).getFront();
 				
 				faux = paux.getFile(raux[0]);				
 				paux.removeFile(raux[0]);
@@ -493,8 +499,8 @@ class Kernel
 				break;
 				
 			case 36: // GET
-				raux = procs[cpu].getReg();
-				paux = cpuLists[cpu].getFront();
+				raux = getProcessor(cpu).getReg();
+				paux = getCpuList(cpu).getFront();
 				
 				faux = paux.getFile(raux[0]);
 				
@@ -506,8 +512,8 @@ class Kernel
 					//queue the disk request
 					queueDiskRequest(faux.getDisk(), Disk.OPERATION_READ, faux.getPos()+faux.getAddress(), 0 );
 					//remove from CPU Queue and insert on Disk Queue
-					diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
-					runProcess(readyList.popFront(),cpu);
+					getDiskList(raux[1]).pushBack( getCpuList(cpu).popFront() );
+					runProcess(getReadyList().popFront(),cpu);
 					
 					System.err.println("Requested for GET on file " + raux[0] );
 				}
@@ -519,14 +525,14 @@ class Kernel
 					if(faux==null) raux[0] = 1; //wrong file code
 					else raux[0] = 0; //EOF code
 					//update the processor with the new registers data
-					procs[cpu].setReg(raux);
+					getProcessor(cpu).setReg(raux);
 				}
 				
 				break;
 			
 			case 37: // PUT
-				raux = procs[cpu].getReg();
-				paux = cpuLists[cpu].getFront();
+				raux = getProcessor(cpu).getReg();
+				paux = getCpuList(cpu).getFront();
 				
 				faux = paux.getFile(raux[0]);
 				
@@ -538,8 +544,8 @@ class Kernel
 					//queue the disk request
 					queueDiskRequest(faux.getDisk(), Disk.OPERATION_WRITE, faux.getPos()+faux.getAddress(), raux[1] );
 					//remove from CPU Queue and insert on Disk Queue
-					diskLists[faux.getDisk()].pushBack( cpuLists[cpu].popFront() );
-					runProcess(readyList.popFront(),cpu);
+					getDiskList(faux.getDisk()).pushBack( getCpuList(cpu).popFront() );
+					runProcess(getReadyList().popFront(),cpu);
 					
 					System.err.println("Requested for PUT on file " + raux[0] + " with " + raux[1]);
 				}
@@ -549,13 +555,13 @@ class Kernel
 					raux[1] = 1;
 					if(faux==null) raux[0] = 1;
 					//update the processor with the new registers data
-					procs[cpu].setReg(raux);
+					getProcessor(cpu).setReg(raux);
 				}
 				
 				break;
 				
 			case 46: // PRINT
-				raux = procs[cpu].getReg();
+				raux = getProcessor(cpu).getReg();
 				System.out.println( "PRINT: " + (raux[0]>>>24) + " " + ((raux[0]>>>16)&255) + " " + ((raux[0]>>>8)&255) + " " + (raux[0]&255));
 				break;
 				

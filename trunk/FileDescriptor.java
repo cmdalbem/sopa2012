@@ -27,8 +27,11 @@ class FileDescriptor
 	public int getDisk() { return disk; }
 	public int getMode() { return mode; }
 	public int getPos() { return pos; }
+	public int getSize() { return size; }
+	public int getAddress() { return address; }
 	
 	public void incPos() { ++pos; }
+	public void incSize() { ++size; }
 	
 	public void setSize(int s) { size = s; }
 }

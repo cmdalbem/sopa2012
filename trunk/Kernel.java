@@ -154,7 +154,7 @@ class Kernel
 		cpuLists[procId].pushBack(p);
 	}
 	
-	private void killCurrentProcess(int procId)
+	synchronized private void killCurrentProcess(int procId)
 	{
 		killProcess( cpuLists[procId].popFront() );
 		runProcess( readyList.popFront(), procId );
@@ -182,9 +182,7 @@ class Kernel
 	
 	synchronized private void restoreContext(int cpu)
 	{
-		ProcessDescriptor paux = null;
-		
-		paux = cpuLists[cpu].getFront();
+		ProcessDescriptor paux = cpuLists[cpu].getFront();
 		if(paux!=null)
 		{
 			procs[cpu].setPC(paux.getPC());
@@ -280,9 +278,11 @@ class Kernel
 		int flag = paux.getFlag();
 		paux.resetFlag(); //reset hanging flag
 		
-		// check if reading attempt was succeeded
 		if(disks[d].getError()==Disk.ERRORCODE_SUCCESS)
 		{
+			// Disk attempt was SUCCESSFULL!
+			//
+			
 			//process was being loaded from disk
 			if(flag==ProcessDescriptor.FLAG_LOADING)
 			{
@@ -290,21 +290,46 @@ class Kernel
 				for(int i=0; i<disks[d].getSize(); i++)
 					mem.superWrite(paux.getPartition()*mem.getPartitionSize() +i, disks[d].getData(i));
 			}
-			else
-				if(flag == ProcessDescriptor.FLAG_OPEN) //process was opening a file for reading
-				{
-					faux = paux.getHangingFile();
-					//update the effective size of the file
-					faux.setSize( disks[d].getSize() );
-					//set registers with information about the operation
-					raux[1] = 0;
-					raux[0] = faux.getId();
-					//update the processor with the new registers data
-					procs[cpu].setReg(raux);		
-				}
-		}				
-		else
+			else if(flag == ProcessDescriptor.FLAG_OPEN) //process was opening a file for reading
+			{
+				faux = paux.getHangingFile();
+				//update the effective size of the file
+				faux.setSize( disks[d].getSize() );
+				//set registers with information about the operation
+				raux[1] = 0;
+				raux[0] = faux.getId();
+				//update the processor with the new registers data
+				paux.setReg(raux);		
+			}
+			else if(flag == ProcessDescriptor.FLAG_PUT)
+			{
+				faux = paux.getHangingFile();
+				if(faux.getPos() == faux.getSize()) //position was outside the original file location
+					faux.incSize();
+				faux.incPos();
+				//set registers with information about the operation
+				raux[1] = 0;
+				//update the processor with the new registers data
+				paux.setReg(raux);			
+			}
+			else if(flag == ProcessDescriptor.FLAG_GET)
+			{
+				faux = paux.getHangingFile();
+				if(faux.getPos() < faux.getSize())
+					faux.incPos();
+				int data = disks[faux.getDisk()].getData(0);
+				//set registers with information about the operation
+				raux[0] = data;
+				raux[1] = 0;
+				//update the processor with the new registers data
+				paux.setReg(raux);		
+			}
+		}
+		else 
 		{	
+			// Disk attempt was UNSUCCESSFULL
+			//
+			
 			switch(disks[d].getError())
 			{
 				case Disk.ERRORCODE_SOMETHING_WRONG:
@@ -325,10 +350,18 @@ class Kernel
 				//set registers with information about the operation
 				raux[1] = 1;
 				//update the processor with the new registers data
-				procs[cpu].setReg(raux);
+				paux.setReg(raux);
+			}
+			else if(flag == ProcessDescriptor.FLAG_PUT)
+			{
+				//set registers with information about the operation
+				raux[1] = 1;
+				//update the processor with the new registers data
+				paux.setReg(raux);				
 			}
 		}
 		
+		// Done with all special handlings, put back this process for running
 		readyList.pushBack( paux );
 		
 		// If we loaded a new process, there may be idle CPUs
@@ -343,7 +376,7 @@ class Kernel
 					break;
 				}
 		
-		//make the disk run for the next request, if there are any
+		// Make the disk run for the next request, if there are any
 		if(!diskReqs.get(d).isEmpty())
 		{
 			DiskRequest r = diskReqs.get(d).poll();
@@ -456,13 +489,34 @@ class Kernel
 				break;
 				
 			case 36: // GET
-				//TODO
 				raux = procs[cpu].getReg();
-				paux = readyList.getFront();
+				paux = cpuLists[cpu].getFront();
 				
 				faux = paux.getFile(raux[0]);
-				//raux = faux.get();
-				procs[cpu].setReg(raux);
+				
+				if(faux!=null && faux.getPos() < faux.getSize())
+				{
+					//set process flag for marking that it's waiting for a file operation
+					paux.setFlag(ProcessDescriptor.FLAG_GET);
+					paux.setHangingFile(faux);
+					//queue the disk request
+					queueDiskRequest(faux.getDisk(), Disk.OPERATION_READ, faux.getPos()+faux.getAddress(), 0 );
+					//remove from CPU Queue and insert on Disk Queue
+					diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
+					runProcess(readyList.popFront(),cpu);
+					
+					System.err.println("Requested for GET on file " + raux[0] );
+				}
+				else
+				{
+					System.err.println("ERROR!");
+					//set registers with error data
+					raux[1] = 1;
+					if(faux==null) raux[0] = 1; //wrong file code
+					else raux[0] = 0; //EOF code
+					//update the processor with the new registers data
+					procs[cpu].setReg(raux);
+				}
 				
 				break;
 			
@@ -472,13 +526,25 @@ class Kernel
 				
 				faux = paux.getFile(raux[0]);
 				
-				//set process flag for marking that it's waiting for a file operation
-				paux.setFlag(ProcessDescriptor.FLAG_PUT);
-				//queue the disk request
-				queueDiskRequest(faux.getDisk(), Disk.OPERATION_WRITE, faux.getPos(), raux[1] );
-				//remove from CPU Queue and insert on Disk Queue
-				diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
-				runProcess(readyList.popFront(),cpu);
+				if(faux!=null && faux.getPos()<faux.getSize()) //check if there's room in the file
+				{
+					//set process flag for marking that it's waiting for a file operation
+					paux.setFlag(ProcessDescriptor.FLAG_PUT);
+					paux.setHangingFile(faux);
+					//queue the disk request
+					queueDiskRequest(faux.getDisk(), Disk.OPERATION_WRITE, faux.getPos(), raux[1] );
+					//remove from CPU Queue and insert on Disk Queue
+					diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
+					runProcess(readyList.popFront(),cpu);
+				}
+				else
+				{
+					//set registers with error data
+					raux[1] = 1;
+					if(faux==null) raux[0] = 1;
+					//update the processor with the new registers data
+					procs[cpu].setReg(raux);
+				}
 				
 				break;
 				
@@ -488,8 +554,9 @@ class Kernel
 				break;
 				
 			default:
-				System.err.println("Unknown interrupt: " + interruptNumber);
+				System.out.println("Unknown interrupt: " + interruptNumber);
 		}
+		
 		// restore context of this processor
 		restoreContext(cpu);
 	}

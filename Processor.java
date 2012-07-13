@@ -62,8 +62,9 @@ class Processor extends Thread
 			IR[3] = RD & 255;
 			// print CPU status to check if it is ok
 			System.err.print("CPU " + id + ": PC=" + PC);
-			System.err.print(" IR="+IR[0]+" "+IR[1]+" "+IR[2]+" "+IR[3]+" ");
-
+			//System.err.print(" IR="+IR[0]+" "+IR[1]+" "+IR[2]+" "+IR[3]+" ");
+			System.err.print(" REGS="+reg[0]+" "+reg[1]+" "+reg[2]+" "+reg[3]+" ");
+			
 			PC = PC+1;
 			
 			// Execute basic instructions of the architecture

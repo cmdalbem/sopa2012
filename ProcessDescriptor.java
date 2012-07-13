@@ -25,7 +25,7 @@ class ProcessDescriptor {
 		files.put(nextFileId, f);
 		++nextFileId;
 		
-		hangingFile = f; 
+		hangingFile = f;
 		
 		return f;
 	}
@@ -33,6 +33,7 @@ class ProcessDescriptor {
 	public void removeFile(int id) { files.remove(id); }
 	public void removeFile(FileDescriptor f) { files.remove(f.getId()); }
 	public FileDescriptor getHangingFile() { return hangingFile; }
+	public void setHangingFile(FileDescriptor f) { hangingFile = f; }
 	
 	public FileDescriptor getFile(int id)
 	{

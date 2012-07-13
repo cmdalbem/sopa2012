@@ -199,7 +199,7 @@ public class Drawer
 			
 			//update the global x positioner
 			x+=Config.XVAR;
-			if(x+INITBARSX>frameWidth)
+			if(x>frameWidth)
 			{
 				x = 0;
 				g2d.clearRect(INITBARSX, 0, frameWidth, frameHeight); //clear bars area

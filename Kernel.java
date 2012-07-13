@@ -242,20 +242,19 @@ class Kernel
 			paux = cpuLists[i].getFront();
 			
 			if( paux!=null && paux.tickTime()==0 )
-			{				
+			{
 				System.err.println("Time is over for process " + cpuLists[i].getFront().getPID() + ", saving the PC=" + procs[i].getPC());
 				procs[i].sem.P();
 					paux.setPC(procs[i].getPC());
 					paux.setReg(procs[i].getReg());
+				
+					paux = cpuLists[i].popFront();
+					if(paux.getPID()!=0)
+						readyList.pushBack(paux);
+					
+					paux = readyList.popFront();
+					runProcess( paux, i );
 				procs[i].sem.V();
-				
-				paux = cpuLists[i].popFront();
-				if(paux.getPID()!=0)
-					readyList.pushBack(paux);
-				
-				paux = readyList.popFront();
-				
-				runProcess( paux, i );
 				
 				System.err.println("Time slice is over! CPU " + i + " now runs: " + cpuLists[i].getFront().getPID());
 			}
@@ -268,13 +267,15 @@ class Kernel
 		Drawer.drawEvent(interruptNumber, cpu);
 	}
 	
-	synchronized private void handleDiskInt(int d, int cpu)
+	synchronized private int handleDiskInt(int d, int cpu)
 	{
 		ProcessDescriptor paux = null;
 		FileDescriptor faux = null;
 		int[] raux = procs[cpu].getReg();
 		
 		paux = diskLists[d].popFront();
+		if(paux==null)
+			return 1;
 		int flag = paux.getFlag();
 		paux.resetFlag(); //reset hanging flag
 		
@@ -367,14 +368,14 @@ class Kernel
 		// If we loaded a new process, there may be idle CPUs
 		// If that's the case, we remove the Dummy process and replace it
 		//  with our new process.
-		if(flag==ProcessDescriptor.FLAG_LOADING)
+		/*if(flag==ProcessDescriptor.FLAG_LOADING)
 			for(int i=0; i<ncpus; i++)
 				if(cpuLists[i].getFront().getPID()==0)
 				{
 					cpuLists[i].popFront();
 					runProcess( readyList.popFront(), i );
 					break;
-				}
+				}*/
 		
 		// Make the disk run for the next request, if there are any
 		if(!diskReqs.get(d).isEmpty())
@@ -382,6 +383,8 @@ class Kernel
 			DiskRequest r = diskReqs.get(d).poll();
 			disks[r.disk].roda(r.op, r.add, r.data);
 		}
+		
+		return 0;
 	}
 	
 	// Each time the kernel runs it have access to all hardware components
@@ -409,6 +412,7 @@ class Kernel
 				//
 				System.out.println("Illegal/unknown instruction.");
 				killCurrentProcess(cpu);
+				//System.exit(0); //for debug purposes!
 				break;
 			
 			case 2:
@@ -475,7 +479,7 @@ class Kernel
 					}
 				}
 				else
-					System.out.println("Error opening file: invalid parameters.");
+					System.err.println("Error opening file: invalid parameters.");
 				
 				break;
 				
@@ -526,16 +530,18 @@ class Kernel
 				
 				faux = paux.getFile(raux[0]);
 				
-				if(faux!=null && faux.getPos()<faux.getSize()) //check if there's room in the file
+				if(faux!=null && faux.getPos()<faux.getSize())
 				{
 					//set process flag for marking that it's waiting for a file operation
 					paux.setFlag(ProcessDescriptor.FLAG_PUT);
 					paux.setHangingFile(faux);
 					//queue the disk request
-					queueDiskRequest(faux.getDisk(), Disk.OPERATION_WRITE, faux.getPos(), raux[1] );
+					queueDiskRequest(faux.getDisk(), Disk.OPERATION_WRITE, faux.getPos()+faux.getAddress(), raux[1] );
 					//remove from CPU Queue and insert on Disk Queue
-					diskLists[raux[1]].pushBack( cpuLists[cpu].popFront() );
+					diskLists[faux.getDisk()].pushBack( cpuLists[cpu].popFront() );
 					runProcess(readyList.popFront(),cpu);
+					
+					System.err.println("Requested for PUT on file " + raux[0] + " with " + raux[1]);
 				}
 				else
 				{

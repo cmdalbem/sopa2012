@@ -165,7 +165,7 @@ class ConsoleWindow extends JFrame {
 		setSize(400, 80);
 		Dimension d = Toolkit.getDefaultToolkit().getScreenSize();
 		Dimension size = getPreferredSize();  
-        setLocation(d.width/2 - size.width/2, 0);
+        setLocation(d.width/2 - size.width/2, d.height/2 - size.height/2);
 		
         setVisible(true);
 	}
